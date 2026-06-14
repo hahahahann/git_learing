@@ -1,5 +1,2 @@
-print("hello")
+print("hello from B")
 print("world")
-print("hello world")
-print("dev branch")
-
