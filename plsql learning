@@ -23,6 +23,8 @@ end;
 /
 
 
+
+
 declare
     l_today date:=sysdate;
 BEGIN 
@@ -85,6 +87,42 @@ LOOP...END LOOP循环体，反复执行计数器记录循环了多少次
 IF 判断循环后的条件处理
 
 
+DECLARE
+BEGIN
+  FOR c1 IN (
+    SELECT DISTINCT OWNER 
+    FROM ALL_TABLES 
+    ORDER BY OWNER
+  ) LOOP
+    dbms_output.put_line(c1.OWNER);
+  END LOOP;
+END;
+
+
+CREATE OR REPLACE PACKAGE pkg AUTHID DEFINER AS
+  table_row_count integer;
+END;
+/
+创建一个包
 
 
 
+DECLARE
+  l_table_count integer := 0;
+  l_sql         varchar2(32767);
+BEGIN
+  for c1 in (
+  SELECT table_name
+  FROM USER_TABLES
+  order by 1) loop
+      l_table_count := l_table_count + 1;
+      l_sql := 'begin select count(*) into pkg.table_row_count from "'||c1.table_name||'"; end;';
+      execute immediate l_sql;
+      dbms_output.put_line(c1.table_name||' - '||to_char(pkg.table_row_count,'999G999G990')||' rows');
+  end loop;
+  if l_table_count = 0 then
+     dbms_output.put_line('You have no tables in your schema');
+  end if;
+END;
+/
+看我有多少表
