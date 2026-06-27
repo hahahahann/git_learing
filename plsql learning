@@ -1,0 +1,23 @@
+sql是从数据库取数据，plsql是控制sql
+DECLARE      -- （可选）声明变量
+  -- 变量定义
+BEGIN        -- （必需）开始执行代码
+  -- 你的代码逻辑
+EXCEPTION    -- （可选）异常处理
+  -- 错误处理
+END;         -- （必需）结束
+
+DBMS_OUTPUT.put_line('hello world');
+-- 打印结果
+
+DECLARE
+    l_day date := sysdate;
+-- sysdate是系统自带的时间，date是日期，在plsql里面=只写在sql里面别的地方是 :=
+BEGIN
+    DBMS_OUTPUT.put_line('today is '||to_char(l_day,'day')); 
+-- 打印结果，to_char 是转换字符串格式，|| 拼接作用和&是一样的 'YYYY-MM-DD' 'DD/MM/YYYY' 'Day'  'D' 
+exception when others then 
+    DBMS_OUTPUT.put_line(sqlerrm);
+-- 打印错误
+end;
+/
