@@ -1,4 +1,42 @@
 sql是从数据库取数据，plsql是控制sql
+定义变量，变量赋值打印变量
+declare
+v_name VARCHAR2(20);
+i_age INTEGER(10);
+begin
+    v_name :='bill';
+    i_age := '25';
+    DBMS_OUTPUT.PUT_LINE('name : '||v_name);
+    DBMS_OUTPUT.PUT_LINE('age : ' ||i_age);
+end;
+/
+
+把sql装到里面，原本是select FIRST_NAME into v_name，但是这个只能装一条数据，就改用for循环，计数环节很重要
+declare
+    v_count NUMBER :=0;
+BEGIN
+    for emp in(
+    select FIRST_NAME,LAST_NAME,salary
+    FROM hr.employees
+    where salary >=7000
+    order by salary desc
+    )
+    loop
+        v_count := v_count+1;
+    dbms_output.put_line(emp.FIRST_NAME||' '||emp.LAST_NAME||' '||emp.salary);
+    end loop;
+    dbms_output.put_line(v_count);
+end;
+
+
+
+
+
+
+
+
+
+
 DECLARE      -- （可选）声明变量
   -- 变量定义
 BEGIN        -- （必需）开始执行代码
