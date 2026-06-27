@@ -21,3 +21,70 @@ exception when others then
 -- 打印错误
 end;
 /
+
+
+declare
+    l_today date:=sysdate;
+BEGIN 
+    if to_char(l_today,'D') in ('1','7') then 
+        DBMS_OUTPUT.PUT_LINE('weekend');
+    else
+        DBMS_OUTPUT.PUT_LINE('week');
+    end if ;
+    dbms_output.put_line('today is '||
+         to_char(l_today,'Day')||
+         ' day '||to_char(l_today,'D')||
+         ' of the week.');
+end;
+/
+
+
+
+DECLARE
+  howmany     INTEGER;
+  num_tables  INTEGER;
+BEGIN
+  -- Begin processing
+  SELECT COUNT(*) INTO howmany
+  FROM USER_OBJECTS
+  WHERE OBJECT_TYPE = 'TABLE'; -- Check number of tables
+  num_tables := howmany;       -- Compute another value
+  dbms_output.put_line (to_char(num_tables,'999G999G990')||' tables');
+END;
+
+这是数字格式化代码
+999 = 显示数字
+G = 千位分隔符（逗号）
+0 = 小数点后的位数
+SELECT INTO	PL/SQL 中查询结果必须用 INTO 放到变量里
+FROM USER_OBJECTS	这是 Oracle 系统表，存储所有数据库对象信息
+WHERE OBJECT_TYPE='TABLE'	筛选出只要表，不要其他对象（索引、视图等）
+数字格式化	让数字显示更易读（加逗号分隔）
+
+
+declare 
+    l_table_count INTEGER := 0;
+begin
+    for c1 in (
+        select table_name
+        from user_tables
+        order by 1
+    )loop
+    l_table_count := l_table_count+1;
+    dbms_output.put_line(c1.table_name);
+    end loop;
+    if l_table_count = 0 then 
+    dbms_output.put_line('no table');
+    end if;
+end;
+/
+
+概念作用FOR c1 IN (SELECT...)把查询结果逐行循环
+c1.table_name访问当前循环行的数据
+LOOP...END LOOP循环体，反复执行计数器记录循环了多少次
+IF 判断循环后的条件处理
+
+
+
+
+
