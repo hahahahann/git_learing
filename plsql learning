@@ -1,0 +1,418 @@
+sql是从数据库取数据，plsql是控制sql
+定义变量，变量赋值打印变量
+declare
+v_name VARCHAR2(20);
+i_age INTEGER(10);
+begin
+    v_name :='bill';
+    i_age := '25';
+    DBMS_OUTPUT.PUT_LINE('name : '||v_name);
+    DBMS_OUTPUT.PUT_LINE('age : ' ||i_age);
+end;
+/
+
+把sql装到里面，原本是select FIRST_NAME into v_name，但是这个只能装一条数据，就改用for循环，计数环节很重要
+declare
+    v_count NUMBER :=0;
+BEGIN
+    for emp in(
+    select FIRST_NAME,LAST_NAME,salary
+    FROM hr.employees
+    where salary >=7000
+    order by salary desc
+    )
+    loop
+        v_count := v_count+1;
+    dbms_output.put_line(emp.FIRST_NAME||' '||emp.LAST_NAME||' '||emp.salary);
+    end loop;
+    dbms_output.put_line(v_count);
+end;
+
+加if循环，加计数，数据库里面的字段，定义的时候直接用%type会比较合理，因为它可以跟随数据库进行变化
+
+declare
+v_count NUMBER :=0;
+v_salary hr.EMPLOYEES.salary%TYPE;
+BEGIN
+    for emp in (
+        select first_name,salary
+        FROM hr.EMPLOYEES            
+        -- where FIRST_NAME = 'Steven'
+    )
+    loop  
+         if emp.salary>10000
+            then dbms_output.put_line(emp.first_name||'的工资是'||emp.salary);
+             v_count := v_count+1;
+            end if;
+        
+    end loop;
+DBMS_OUTPUT.PUT_LINE('High Salary Count : '||v_count);
+end;
+ /
+
+%rowtype可以定义多字段%type只能定义一个字段
+
+declare
+    v_emp hr.employees%rowtype;
+begin
+    select *
+    into v_emp
+    from hr.EMPLOYEES
+    where EMPLOYEE_ID=101;
+    DBMS_OUTPUT.PUT_LINE(v_emp.first_name);
+    DBMS_OUTPUT.PUT_LINE(v_emp.salary);
+    DBMS_OUTPUT.PUT_LINE(v_emp.email);
+
+END;
+/
+
+报错怎么办
+declare
+    v_emp hr.employees%rowtype;
+begin
+    select *
+    -- EMPLOYEE_ID,FIRST_NAME,LAST_NAME,SALARY
+    into v_emp
+    from hr.EMPLOYEES
+    -- where EMPLOYEE_ID=9999;
+    where salary > 9999;
+    DBMS_OUTPUT.PUT_LINE(v_emp.first_name);
+    DBMS_OUTPUT.PUT_LINE(v_emp.salary);
+    -- DBMS_OUTPUT.PUT_LINE(v_emp.email);
+    EXCEPTION
+    when no_data_found then DBMS_OUTPUT.PUT_LINE('No Employee');
+    when too_many_rows then DBMS_OUTPUT.PUT_LINE('Too many employees');
+    when OTHERS then DBMS_OUTPUT.PUT_LINE('SQLERRM');
+end;
+-- END;
+建立存储，可以往里面传参数
+CREATE OR REPLACE PROCEDURE count_high_salary(
+p_salary in hr.employees.salary%TYPe,
+p_count OUT NUMBER)
+is
+BEGIN
+SELECT COUNT(*)
+INTO p_count
+FROM hr.employees
+WHERE salary >= p_salary;
+end;
+调用存储
+DECLARE
+    v_count NUMBER;
+BEGIN
+    count_high_salary(15000, v_count);
+
+    DBMS_OUTPUT.PUT_LINE(
+        'High Salary Count : ' || v_count
+    );
+END;
+/
+
+Function 更适合计算并返回一个值。
+CREATE OR REPLACE FUNCTION get_salary(
+    p_employee_id hr.employees.employee_id%TYPE
+)
+RETURN hr.employees.salary%TYPE
+IS
+    v_salary hr.employees.salary%TYPE;
+BEGIN
+
+    SELECT salary
+    INTO v_salary
+    FROM hr.employees
+    WHERE employee_id = p_employee_id;
+
+    RETURN v_salary;
+
+END;
+/
+
+打包
+CREATE OR REPLACE PACKAGE BODY salary_pkg
+IS
+
+    PROCEDURE count_high_salary(
+        p_salary IN hr.employees.salary%TYPE,
+        p_count OUT NUMBER
+    )
+    IS
+    BEGIN
+
+        SELECT COUNT(*)
+        INTO p_count
+        FROM hr.employees
+        WHERE salary>=p_salary;
+
+    END;
+
+END salary_pkg;
+/
+
+
+调用
+DECLARE
+
+    v_count NUMBER;
+
+BEGIN
+
+    salary_pkg.count_high_salary(
+        15000,
+        v_count
+    );
+
+    DBMS_OUTPUT.PUT_LINE(v_count);
+
+END;
+/
+
+动态sql
+DECLARE
+
+    l_sql VARCHAR2(1000);
+
+BEGIN
+
+    l_sql :=
+        'SELECT COUNT(*) FROM '
+        || p_table_name ||
+        ' WHERE salary >= :1';
+
+    EXECUTE IMMEDIATE
+        l_sql
+        INTO p_count
+        USING p_salary;
+
+END;
+
+游标卡尺，用简化版的loop就可以
+CURSOR c_emp IS
+
+SELECT first_name,
+       salary
+FROM hr.employees
+WHERE salary>=p_salary;
+
+视图
+CREATE VIEW active_employee
+AS
+SELECT *
+FROM hr.employees
+WHERE status='ACTIVE'
+AND quit_date IS NULL;
+调用视图
+SELECT COUNT(*)
+INTO p_count
+FROM active_employee
+WHERE salary>=p_salary;
+
+新增新员工序列增加
+INSERT INTO employee(
+employee_id,
+first_name,
+salary
+)
+VALUES(
+seq_employee.NEXTVAL,
+'Bill',
+15000
+);
+
+seq_employee.CURRVAL当前的序列
+为什么要用 SEQUENCE？
+自动生成主键 —— 不用手动输入
+唯一性保证 —— 每个值都不重复
+高效 —— 数据库层面优化
+分布式友好 —— 在集群环境中能保证唯一性
+
+
+触发器
+CREATE OR REPLACE TRIGGER emp_audit_trigger
+AFTER INSERT OR UPDATE OR DELETE
+ON EMPLOYEES
+FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+    DBMS_OUTPUT.PUT_LINE('执行了 INSERT');
+  ELSIF UPDATING THEN
+    DBMS_OUTPUT.PUT_LINE('执行了 UPDATE');
+  ELSIF DELETING THEN
+    DBMS_OUTPUT.PUT_LINE('执行了 DELETE');
+  END IF;
+END emp_audit_trigger;
+/
+
+
+merge
+MERGE INTO hr.employees e
+USING hr.employees_temp t
+ON (
+    e.employee_id=t.employee_id
+)
+WHEN MATCHED THEN
+UPDATE SET
+e.salary=t.salary
+WHEN NOT MATCHED THEn
+INSERT(
+employee_id,
+first_name,
+salary
+)
+VALUES(
+t.employee_id,
+t.first_name,
+t.salary
+);
+
+
+优化sql
+-- 查看执行计划
+EXPLAIN PLAN FOR
+SELECT * FROM EMPLOYEES WHERE salary > 5000;
+
+-- 显示执行计划
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+
+1. 写 SQL
+   ↓
+2. 注意用索引列
+   ↓
+3. 运行测试
+   ↓
+4. 如果慢 → 看执行计划
+   ↓
+5. 发现问题 → 创建索引或改 SQL
+   ↓
+6. 再次看执行计划确认改进
+
+
+
+
+DECLARE      -- （可选）声明变量
+  -- 变量定义
+BEGIN        -- （必需）开始执行代码
+  -- 你的代码逻辑
+EXCEPTION    -- （可选）异常处理
+  -- 错误处理
+END;         -- （必需）结束
+
+DBMS_OUTPUT.put_line('hello world');
+-- 打印结果
+
+DECLARE
+    l_day date := sysdate;
+-- sysdate是系统自带的时间，date是日期，在plsql里面=只写在sql里面别的地方是 :=
+BEGIN
+    DBMS_OUTPUT.put_line('today is '||to_char(l_day,'day')); 
+-- 打印结果，to_char 是转换字符串格式，|| 拼接作用和&是一样的 'YYYY-MM-DD' 'DD/MM/YYYY' 'Day'  'D' 
+exception when others then 
+    DBMS_OUTPUT.put_line(sqlerrm);
+-- 打印错误
+end;
+/
+
+
+
+
+declare
+    l_today date:=sysdate;
+BEGIN 
+    if to_char(l_today,'D') in ('1','7') then 
+        DBMS_OUTPUT.PUT_LINE('weekend');
+    else
+        DBMS_OUTPUT.PUT_LINE('week');
+    end if ;
+    dbms_output.put_line('today is '||
+         to_char(l_today,'Day')||
+         ' day '||to_char(l_today,'D')||
+         ' of the week.');
+end;
+/
+
+
+
+DECLARE
+  howmany     INTEGER;
+  num_tables  INTEGER;
+BEGIN
+  -- Begin processing
+  SELECT COUNT(*) INTO howmany
+  FROM USER_OBJECTS
+  WHERE OBJECT_TYPE = 'TABLE'; -- Check number of tables
+  num_tables := howmany;       -- Compute another value
+  dbms_output.put_line (to_char(num_tables,'999G999G990')||' tables');
+END;
+
+这是数字格式化代码
+999 = 显示数字
+G = 千位分隔符（逗号）
+0 = 小数点后的位数
+SELECT INTO	PL/SQL 中查询结果必须用 INTO 放到变量里
+FROM USER_OBJECTS	这是 Oracle 系统表，存储所有数据库对象信息
+WHERE OBJECT_TYPE='TABLE'	筛选出只要表，不要其他对象（索引、视图等）
+数字格式化	让数字显示更易读（加逗号分隔）
+
+
+declare 
+    l_table_count INTEGER := 0;
+begin
+    for c1 in (
+        select table_name
+        from user_tables
+        order by 1
+    )loop
+    l_table_count := l_table_count+1;
+    dbms_output.put_line(c1.table_name);
+    end loop;
+    if l_table_count = 0 then 
+    dbms_output.put_line('no table');
+    end if;
+end;
+/
+
+概念作用FOR c1 IN (SELECT...)把查询结果逐行循环
+c1.table_name访问当前循环行的数据
+LOOP...END LOOP循环体，反复执行计数器记录循环了多少次
+IF 判断循环后的条件处理
+
+
+DECLARE
+BEGIN
+  FOR c1 IN (
+    SELECT DISTINCT OWNER 
+    FROM ALL_TABLES 
+    ORDER BY OWNER
+  ) LOOP
+    dbms_output.put_line(c1.OWNER);
+  END LOOP;
+END;
+
+
+CREATE OR REPLACE PACKAGE pkg AUTHID DEFINER AS
+  table_row_count integer;
+END;
+/
+创建一个包
+
+
+
+DECLARE
+  l_table_count integer := 0;
+  l_sql         varchar2(32767);
+BEGIN
+  for c1 in (
+  SELECT table_name
+  FROM USER_TABLES
+  order by 1) loop
+      l_table_count := l_table_count + 1;
+      l_sql := 'begin select count(*) into pkg.table_row_count from "'||c1.table_name||'"; end;';
+      execute immediate l_sql;
+      dbms_output.put_line(c1.table_name||' - '||to_char(pkg.table_row_count,'999G999G990')||' rows');
+  end loop;
+  if l_table_count = 0 then
+     dbms_output.put_line('You have no tables in your schema');
+  end if;
+END;
+/
+看我有多少表

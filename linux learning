@@ -1,0 +1,121 @@
+连接服务器 
+ssh -p 22 user@adress
+
+当前位置
+pwd
+
+查看文件列表
+ls
+文件列表竖排列
+ls -l
+ll(ls -alF)也是竖排列但是也显示隐藏文件
+ls-la也显示隐藏文件
+前面有drwxrwxr-x ---
+1）
+d  文件夹(directory) 表明该文件是一个目录文件；
+l  软链接(link)
+2）r 表示该文件具有可读权限；
+3）w 表示该文件具有写权限；
+4）x 表示该文件具有可执行权限。
+5）第一个 rwx 表示该文件所有者的权限；第二个 rwx 表示该文件所在组的权限；第三个 rwx 表示其他用户对该文件的权限。
+rw- r-- r--
+│   │   │
+│   │   └── 其他用户
+│   └────── 同组用户
+└────────── 文件拥有者
+https://www.cnblogs.com/tongye/p/10416032.html
+
+进入文件
+cd 文件名，用tab补全
+cd .. 退回上一层
+cd ~ 回到根目录
+
+创建文件，在一个文件夹里面进行操作
+touch test.csv
+
+创建文件夹
+mkdir data
+
+复制文件
+cp test.csv dtest.csv 在同一个文件夹下，复制成另外一个名字文件
+cp test.csv data/  在data文件夹下有一个一样的名字的文件
+cp test.csv data/sales.csv 复制到data,并改名字
+
+移动文件
+mv data.backup.csv data/hahaha.csv  移动并改名
+mv data.backup.csv data    移动不改名
+
+删除文件
+rm test.csv
+文件写入
+echo "id,name,age" > test.csv     >   覆盖写入
+echo "1,Bill,25" >> test.csv      >>  追加写入
+echo "2,Tom,30" >> test.csv
+一次写多行
+cat > test.csv << EOF
+id,name,age
+1,Bill,25
+2,Tom,30
+EOF
+
+读取文件
+cat test.csv
+head test.csv     前10行
+tail test.csv     后10行
+tail -f app.log
+
+less test.csv    分页查看 q 退出
+
+删除文件夹目录
+rm -r data
+
+搜索文件
+find . -name "*.csv"
+
+搜带有错误的日志
+grep "error" app.log
+
+忽视大小写
+grep -i error app.log
+
+统计错误数
+grep error app.log | wc -l
+
+查看进程
+ps -ef
+
+查看pyhton
+ps -ef | grep python
+
+结束进程
+kill PID
+
+强制结束进程
+kill -9 PID
+
+查看内存cpu
+top   q退出
+
+查看磁盘
+df -h
+
+查看目录大小，文件大小
+du -sh data
+
+执行pyhton文件
+python app.py
+
+统计行数
+wc -l app.log
+
+去重
+sort users.txt | uniq
+
+排序
+sort sales.csv
+
+打印第三列
+awk -F',' '{print $3}' sales.csv
+
+输出第三列
+cut -d',' -f3 sales.csv
