@@ -28,11 +28,263 @@ BEGIN
     dbms_output.put_line(v_count);
 end;
 
+加if循环，加计数，数据库里面的字段，定义的时候直接用%type会比较合理，因为它可以跟随数据库进行变化
+
+declare
+v_count NUMBER :=0;
+v_salary hr.EMPLOYEES.salary%TYPE;
+BEGIN
+    for emp in (
+        select first_name,salary
+        FROM hr.EMPLOYEES            
+        -- where FIRST_NAME = 'Steven'
+    )
+    loop  
+         if emp.salary>10000
+            then dbms_output.put_line(emp.first_name||'的工资是'||emp.salary);
+             v_count := v_count+1;
+            end if;
+        
+    end loop;
+DBMS_OUTPUT.PUT_LINE('High Salary Count : '||v_count);
+end;
+ /
+
+%rowtype可以定义多字段%type只能定义一个字段
+
+declare
+    v_emp hr.employees%rowtype;
+begin
+    select *
+    into v_emp
+    from hr.EMPLOYEES
+    where EMPLOYEE_ID=101;
+    DBMS_OUTPUT.PUT_LINE(v_emp.first_name);
+    DBMS_OUTPUT.PUT_LINE(v_emp.salary);
+    DBMS_OUTPUT.PUT_LINE(v_emp.email);
+
+END;
+/
+
+报错怎么办
+declare
+    v_emp hr.employees%rowtype;
+begin
+    select *
+    -- EMPLOYEE_ID,FIRST_NAME,LAST_NAME,SALARY
+    into v_emp
+    from hr.EMPLOYEES
+    -- where EMPLOYEE_ID=9999;
+    where salary > 9999;
+    DBMS_OUTPUT.PUT_LINE(v_emp.first_name);
+    DBMS_OUTPUT.PUT_LINE(v_emp.salary);
+    -- DBMS_OUTPUT.PUT_LINE(v_emp.email);
+    EXCEPTION
+    when no_data_found then DBMS_OUTPUT.PUT_LINE('No Employee');
+    when too_many_rows then DBMS_OUTPUT.PUT_LINE('Too many employees');
+    when OTHERS then DBMS_OUTPUT.PUT_LINE('SQLERRM');
+end;
+-- END;
+建立存储，可以往里面传参数
+CREATE OR REPLACE PROCEDURE count_high_salary(
+p_salary in hr.employees.salary%TYPe,
+p_count OUT NUMBER)
+is
+BEGIN
+SELECT COUNT(*)
+INTO p_count
+FROM hr.employees
+WHERE salary >= p_salary;
+end;
+调用存储
+DECLARE
+    v_count NUMBER;
+BEGIN
+    count_high_salary(15000, v_count);
+
+    DBMS_OUTPUT.PUT_LINE(
+        'High Salary Count : ' || v_count
+    );
+END;
+/
+
+Function 更适合计算并返回一个值。
+CREATE OR REPLACE FUNCTION get_salary(
+    p_employee_id hr.employees.employee_id%TYPE
+)
+RETURN hr.employees.salary%TYPE
+IS
+    v_salary hr.employees.salary%TYPE;
+BEGIN
+
+    SELECT salary
+    INTO v_salary
+    FROM hr.employees
+    WHERE employee_id = p_employee_id;
+
+    RETURN v_salary;
+
+END;
+/
+
+打包
+CREATE OR REPLACE PACKAGE BODY salary_pkg
+IS
+
+    PROCEDURE count_high_salary(
+        p_salary IN hr.employees.salary%TYPE,
+        p_count OUT NUMBER
+    )
+    IS
+    BEGIN
+
+        SELECT COUNT(*)
+        INTO p_count
+        FROM hr.employees
+        WHERE salary>=p_salary;
+
+    END;
+
+END salary_pkg;
+/
 
 
+调用
+DECLARE
+
+    v_count NUMBER;
+
+BEGIN
+
+    salary_pkg.count_high_salary(
+        15000,
+        v_count
+    );
+
+    DBMS_OUTPUT.PUT_LINE(v_count);
+
+END;
+/
+
+动态sql
+DECLARE
+
+    l_sql VARCHAR2(1000);
+
+BEGIN
+
+    l_sql :=
+        'SELECT COUNT(*) FROM '
+        || p_table_name ||
+        ' WHERE salary >= :1';
+
+    EXECUTE IMMEDIATE
+        l_sql
+        INTO p_count
+        USING p_salary;
+
+END;
+
+游标卡尺，用简化版的loop就可以
+CURSOR c_emp IS
+
+SELECT first_name,
+       salary
+FROM hr.employees
+WHERE salary>=p_salary;
+
+视图
+CREATE VIEW active_employee
+AS
+SELECT *
+FROM hr.employees
+WHERE status='ACTIVE'
+AND quit_date IS NULL;
+调用视图
+SELECT COUNT(*)
+INTO p_count
+FROM active_employee
+WHERE salary>=p_salary;
+
+新增新员工序列增加
+INSERT INTO employee(
+employee_id,
+first_name,
+salary
+)
+VALUES(
+seq_employee.NEXTVAL,
+'Bill',
+15000
+);
+
+seq_employee.CURRVAL当前的序列
+为什么要用 SEQUENCE？
+自动生成主键 —— 不用手动输入
+唯一性保证 —— 每个值都不重复
+高效 —— 数据库层面优化
+分布式友好 —— 在集群环境中能保证唯一性
 
 
+触发器
+CREATE OR REPLACE TRIGGER emp_audit_trigger
+AFTER INSERT OR UPDATE OR DELETE
+ON EMPLOYEES
+FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+    DBMS_OUTPUT.PUT_LINE('执行了 INSERT');
+  ELSIF UPDATING THEN
+    DBMS_OUTPUT.PUT_LINE('执行了 UPDATE');
+  ELSIF DELETING THEN
+    DBMS_OUTPUT.PUT_LINE('执行了 DELETE');
+  END IF;
+END emp_audit_trigger;
+/
 
+
+merge
+MERGE INTO hr.employees e
+USING hr.employees_temp t
+ON (
+    e.employee_id=t.employee_id
+)
+WHEN MATCHED THEN
+UPDATE SET
+e.salary=t.salary
+WHEN NOT MATCHED THEn
+INSERT(
+employee_id,
+first_name,
+salary
+)
+VALUES(
+t.employee_id,
+t.first_name,
+t.salary
+);
+
+
+优化sql
+-- 查看执行计划
+EXPLAIN PLAN FOR
+SELECT * FROM EMPLOYEES WHERE salary > 5000;
+
+-- 显示执行计划
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+
+1. 写 SQL
+   ↓
+2. 注意用索引列
+   ↓
+3. 运行测试
+   ↓
+4. 如果慢 → 看执行计划
+   ↓
+5. 发现问题 → 创建索引或改 SQL
+   ↓
+6. 再次看执行计划确认改进
 
 
 
