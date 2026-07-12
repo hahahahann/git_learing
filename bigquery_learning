@@ -1,0 +1,253 @@
+======================================================
+BigQuery SQL 学习笔记（对比 Navicat / MySQL 语法差异）
+======================================================
+
+【一、准备数据：建一张带嵌套字段的表】
+
+CREATE OR REPLACE TABLE demo_dataset.orders_nested AS
+SELECT 1001 AS order_id, 'Alice' AS customer, DATE '2026-07-01' AS order_date,
+  [STRUCT('T恤' AS name, 2 AS qty, 39.9 AS price),
+   STRUCT('水杯' AS name, 1 AS qty, 19.5 AS price)] AS items
+UNION ALL
+SELECT 1002, 'Bob', DATE '2026-07-03',
+  [STRUCT('背包', 1, 99.5)]
+UNION ALL
+SELECT 1003, 'Carol', DATE '2026-07-05',
+  [STRUCT('鼠标', 2, 49.0), STRUCT('键盘', 1, 100.5)];
+
+说明：BigQuery 支持 ARRAY（数组）和 STRUCT（结构体）作为字段类型，
+一行里的 items 字段本身就是"一个数组，数组里每个元素是一个小结构体"。
+这是 MySQL/Navicat 里完全没有的字段类型，MySQL 要表达同样的信息通常
+需要拆成一张订单表 + 一张订单明细表，用外键关联。
+
+
+【二、UNNEST 展开嵌套字段】
+
+SELECT o.order_id, o.customer, item.name, item.qty, item.price
+FROM demo_dataset.orders_nested AS o,
+UNNEST(o.items) AS item;
+
+说明：UNNEST 写在 FROM 后面，和主表用逗号连接，效果类似 JOIN——
+每个订单会按数组里有几个商品"炸"成几行。这一步只是"查询时的逻辑展开"，
+不会改变 orders_nested 原表本身，orders_nested 还是老样子（一行一个订单）。
+
+如果只是一次性用，直接在 FROM 里 UNNEST 就够；如果这份展开结果要被
+后面好几条语句反复引用，可以用临时表或 WITH 先存一下（见第十二部分）。
+
+
+【三、ARRAY_AGG 收拢（和展开相反的操作）】
+
+SELECT o.order_id, o.customer,
+       ARRAY_AGG(item.name) AS item_names
+FROM demo_dataset.orders_nested AS o,
+UNNEST(o.items) AS item
+GROUP BY o.order_id, o.customer;
+
+说明：ARRAY_AGG 是聚合函数，跟 SUM/COUNT 类似都是"多行变一行"，
+区别是 SUM/COUNT 输出一个数字，ARRAY_AGG 输出一个数组，把分组内
+所有值原样收集起来不做计算。也就是"先用 UNNEST 展开算东西，
+再用 GROUP BY + ARRAY_AGG 收拢回去"，这是 BigQuery 里处理嵌套数据
+的典型套路，MySQL 没有原生数组类型，也就没有对应写法
+（MySQL 只能用 GROUP_CONCAT 拼成字符串，语义不一样）。
+
+
+【四、日期函数与安全函数（NULL/除零/类型转换不报错）】
+
+SELECT
+  order_date,
+  DATE_TRUNC(order_date, MONTH) AS month_start,
+  DATE_DIFF(CURRENT_DATE(), order_date, DAY) AS days_since_order,
+  SAFE_DIVIDE(100, 0) AS safe_div_result,
+  SAFE_CAST('abc' AS INT64) AS safe_cast_result
+FROM demo_dataset.orders_nested;
+
+SELECT
+  order_date,
+  EXTRACT(YEAR FROM order_date) AS order_year,
+  EXTRACT(MONTH FROM order_date) AS order_month
+FROM demo_dataset.orders_nested;
+
+说明：
+- DATE_TRUNC(日期, MONTH/YEAR/WEEK) 把日期截断到某个时间粒度的起点，
+  MySQL 没有直接对应函数，通常要用 DATE_FORMAT 拼字符串代替。
+- DATE_DIFF(结束日期, 开始日期, 单位) 参数顺序是"大的在前"，
+  和 MySQL 的 DATEDIFF(a, b) 只能算天数不同，BigQuery 可以指定
+  DAY/MONTH/YEAR 等单位。
+- SAFE_DIVIDE / SAFE_CAST 系列函数是 BigQuery 特有的"安全版本"，
+  遇到除零、类型转换失败等情况会返回 NULL 而不是报错中断整个查询，
+  MySQL 没有这一整套 SAFE_ 前缀函数。
+- EXTRACT(YEAR FROM date) / EXTRACT(MONTH FROM date) 用于只取出
+  年份或月份数字，和 DATE_TRUNC 的区别是：EXTRACT 拿到的是"数字"
+  （比如 2026、7），DATE_TRUNC 拿到的还是"日期"（比如 2026-07-01），
+  两者用途不同，一个用来分组统计按年/按月对比，一个用来对齐到月初。
+
+BigQuery 与 MySQL 日期函数对照：
+  取当前日期        MySQL: CURDATE()             BigQuery: CURRENT_DATE()
+  取年/月/日        MySQL: YEAR()/MONTH()/DAY()  BigQuery: EXTRACT(YEAR/MONTH/DAY FROM ...)
+  日期截断到月初     MySQL: DATE_FORMAT拼接        BigQuery: DATE_TRUNC(date, MONTH)
+  两日期相差天数     MySQL: DATEDIFF(a,b)          BigQuery: DATE_DIFF(a,b,DAY)
+  安全除法          MySQL: 无（除零报错/返回NULL） BigQuery: SAFE_DIVIDE(a,b)
+  安全类型转换       MySQL: 无标准写法             BigQuery: SAFE_CAST(x AS type)
+
+
+【五、主键不强制执行（PRIMARY KEY NOT ENFORCED）】
+
+CREATE OR REPLACE TABLE demo_dataset.pk_demo (
+  id INT64 NOT NULL,
+  name STRING,
+  PRIMARY KEY (id) NOT ENFORCED
+);
+
+INSERT INTO demo_dataset.pk_demo (id, name) VALUES (1, '第一次插入');
+INSERT INTO demo_dataset.pk_demo (id, name) VALUES (1, '重复id插入');
+
+SELECT * FROM demo_dataset.pk_demo;
+-- 实测结果：两条 id=1 的记录都插入成功，没有报错，说明主键约束
+-- 只是"声明性"的，仅供查询优化器参考、给人看表结构用，BigQuery
+-- 不会真的去检查唯一性。这和 MySQL 主键会强制拒绝重复插入完全不同，
+-- 使用时如果需要唯一性，得自己在业务逻辑或者查询里用 DISTINCT/
+-- ROW_NUMBER 去重，不能依赖数据库层面报错拦截。
+
+
+【六、分区表与聚簇表（大数据量查询省钱的关键）】
+
+CREATE OR REPLACE TABLE demo_dataset.orders_partitioned
+PARTITION BY order_date
+CLUSTER BY customer AS
+SELECT * FROM demo_dataset.orders_nested;
+
+SELECT * FROM demo_dataset.orders_partitioned
+WHERE order_date = '2026-07-03';
+
+说明：PARTITION BY 按日期把表在物理上拆成多个分区，查询时加了
+WHERE order_date = ... 的过滤条件，BigQuery 只扫描对应分区，
+不用扫全表；CLUSTER BY 在分区内部再按某个字段排序聚簇，进一步
+减少扫描量。BigQuery 是按"扫描字节数"计费的，所以分区聚簇设计
+得好能直接省钱。MySQL 虽然也有分区表，但 MySQL 通常不是按扫描量
+计费，考虑的更多是索引和查询速度，出发点不太一样。
+
+
+【七、存储过程（CREATE PROCEDURE + CALL）】
+
+CREATE OR REPLACE PROCEDURE demo_dataset.get_top_customers(min_total FLOAT64)
+BEGIN
+  SELECT customer, SUM(amount) AS total
+  FROM demo_dataset.sales
+  GROUP BY customer
+  HAVING SUM(amount) >= min_total
+  ORDER BY total DESC;
+END;
+
+CALL demo_dataset.get_top_customers(50);
+-- 实测结果：Carol 198.5 / Bob 99.5 / Alice 89.3
+
+说明：写法和 MySQL 的存储过程思路类似（CREATE PROCEDURE + 参数 +
+BEGIN...END），但 BigQuery 的存储过程里不支持事务、不支持游标那一套
+逐行处理逻辑，更适合封装"一段可复用的查询逻辑"，而不是复杂的
+过程式编程。
+
+
+【八、视图（CREATE VIEW）】
+
+CREATE OR REPLACE VIEW demo_dataset.customer_totals_view AS
+SELECT customer, SUM(amount) AS total_amount, COUNT(*) AS order_count
+FROM demo_dataset.sales
+GROUP BY customer;
+
+SELECT * FROM demo_dataset.customer_totals_view;
+
+说明：视图本质上是"保存起来的查询"，每次查视图都是实时重新执行
+背后的 SQL，不会预先存数据（这点和 MySQL 视图概念一致）。用视图
+的好处是把复杂查询封装一层，后面直接查视图名字，不用每次重写
+一遍聚合逻辑。
+
+
+【九、定时运行（计划查询 Scheduled Query）】
+
+说明：BigQuery 控制台里，写完一条查询后点"时间表"按钮，可以把
+这条查询设置成按分钟/小时/天/周/月，或自定义 cron 表达式重复执行，
+执行结果可以写入指定的目标表。配置界面里还包括：目标位置、
+服务账号、通知选项（可以勾选"发送邮件通知"或者接入 Cloud Pub/Sub
+主题）。也就是说，任何一条 SQL（包括 CALL 存储过程）理论上都可以
+配置定时执行，执行失败时可以配置邮件提醒，但"往邮件正文里插入
+查询结果内容"这种更复杂的报表功能，BigQuery 自身不直接支持，
+需要配合 Cloud Function 或者第三方 BI 工具来做。
+
+
+【十、Power BI vs Looker Studio（邮件报表方案对比）】
+
+说明：Power BI 连接 BigQuery 作为数据源没问题，但 Power BI 的
+"定时刷新+邮件订阅推送报表"功能通常绑定在 Power BI Service
+（付费/组织版）里，配置相对更复杂，且和 Google 生态的衔接要多一层
+连接器。Looker Studio 是 Google 自家产品，原生连接 BigQuery
+几乎零配置，而且自带"预定电子邮件传送"功能，可以直接设置报表
+每天/每周自动发邮件给指定收件人，配置上比 Power BI 更省事。
+如果使用场景就是"给 BigQuery 数据做可视化报表并定期邮件发送"，
+Looker Studio 通常是更顺手的选择；如果公司已经全员使用 Power BI
+生态、有统一的报表规范，那还是优先 Power BI。
+
+
+【十一、额外补充的坑点（Navicat/MySQL 习惯容易踩坑的地方）】
+
+1. SELECT * 的成本问题：BigQuery 按扫描的列的字节数计费，
+   SELECT * 会扫描所有列，即使你只是想看几行数据，也可能扫描
+   大量不需要的列，成本远高于只 SELECT 需要的字段。这和 MySQL
+   里 SELECT * 主要影响的是"传输量"、不直接影响计费，是本质区别。
+
+2. 没有传统意义上的触发器（Trigger）：BigQuery 不支持行级触发器，
+   如果需要"某张表插入数据后自动做什么"，通常要靠外部服务
+   （如 Cloud Function 监听、或者定时查询轮询）去实现，不能像
+   MySQL 那样直接在表上定义 AFTER INSERT 触发器。
+
+3. 通配符表（wildcard table）：BigQuery 支持用
+   `FROM \`project.dataset.table_*\`` 这种写法一次性查询一批
+   命名规律相同的表（比如按天分表的日志表），并配合
+   `_TABLE_SUFFIX` 伪列做过滤，这也是 MySQL 里没有的用法。
+
+4. CSV 导出的限制：通过 BigQuery 控制台直接导出查询结果为本地
+   CSV 文件时，单次导出有行数上限，数据量大时需要先导出到
+   Cloud Storage 再下载，不能像 Navicat 那样一键导出无限制。
+
+
+【十二、临时表 vs WITH（CTE）—— 该什么时候用哪个】
+
+核心区别：作用范围不同。WITH 定义的临时结果只在它所属的
+"那一条 SQL 语句"里有效，语句执行完就消失；临时表
+（CREATE TEMP TABLE）可以跨"多条语句"持续存在，直到当前
+会话/脚本结束。
+
+场景一：只是同一条查询里要重复引用某个中间结果 —— 用 WITH 就够
+
+WITH customer_totals AS (
+  SELECT customer, SUM(amount) AS total
+  FROM demo_dataset.sales
+  GROUP BY customer
+)
+SELECT customer, total,
+       total / (SELECT AVG(total) FROM customer_totals) AS ratio_to_avg
+FROM customer_totals;
+
+场景二：逻辑要跨多条独立语句（尤其是存储过程里"先算一步、
+再执行下一步"）—— 只能用临时表，因为每条新语句对 WITH 来说
+都是"重新开始"，前一条语句定义的 WITH 名字，下一条语句看不到。
+
+CREATE TEMP TABLE flat_orders AS
+SELECT o.order_id, o.customer, item.name, item.qty
+FROM demo_dataset.orders_nested AS o,
+UNNEST(o.items) AS item;
+
+SELECT * FROM flat_orders WHERE qty > 1;
+
+临时表典型使用场景：
+一是中间结果计算代价较大、需要被多条语句反复复用，避免重复计算；
+二是调试复杂多层逻辑时，分步落地方便排查问题所在；
+三是存储过程/批处理脚本里，需要跨语句共享和传递数据。
+
+一句话结论：单条语句内的复用，WITH 基本可以完全替代临时表，
+更简洁；只有当中间结果需要跨语句、跨步骤保留时，才必须用
+临时表。日常写查询如果都是一条完整语句解决问题，用 WITH 足够。
+
+======================================================
+笔记结束。建议把这些 SQL 保存下来，在 BigQuery Studio 里
+自己重新敲一遍加深记忆。
+======================================================
