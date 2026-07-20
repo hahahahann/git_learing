@@ -1,0 +1,552 @@
+# DAY 4 AI Agents: Vibe Coding Security & Evaluation - 完整分析
+
+## 📺 视频基本信息
+- **课程**: 5-Days of AI Agents: Intensive Vibe Coding Course with Google
+- **讲者**: Smith Kolen (Google Cloud), Anant Navalgaria (Founder), 及三位白皮书作者 (Socrates, Meltum, Waffa)
+- **时长**: 1小时1分钟
+- **主题**: Agent Security & Evaluation
+
+---
+
+## ✅ 第一框架：总结 Summary
+
+**本堂课核心内容**:
+
+DAY 4专注于解决"如何在生产环境中信任AI Agent"这一关键问题。课程强调信任不是一次性的部署验证,而是需要持续评估的动态指标(Effective Trust)。核心内容分为四大支柱:
+
+1. **安全架构** - 七支柱Agent安全模型，包括沙箱隔离、JIT令牌、供应链安全
+2. **评估框架** - 轨迹追踪(Trajectory-aware evaluation)而非仅输出检查
+3. **防御三角** - 红队(Red Team攻击)、蓝队(Blue Team观察)、绿队(Green Team修复)
+4. **生产部署** - 从代码审查到运行时监控的完整流程
+
+课程通过两个实战代码实验室展示如何构建安全的Agent：支出审批Agent和安全购物助手。
+
+---
+
+## 📑 第二框架：知识点解释 Concept Explanations
+
+### **1. Effective Trust (有效信任)**
+传统软件中信任是二元的(代码编译、测试通过=可信),但在Agent系统中:
+- Agent可能持有有效令牌却意图不对齐
+- 信任必须通过整个生命周期持续验证
+- 涉及供应链、身份、运行时行为、上下文关联等多个维度
+
+### **2. Trajectory-Aware Evaluation (轨迹感知评估)**
+- **问题**: 正确的输出可能掩盖危险的推理过程(Fragile Success Traps)
+- **解决**: 不仅评估最终输出,还要评估Agent采取的工具序列和推理路径
+- **实现**: 通过OpenTelemetry进行完整追踪记录
+
+### **3. Seven-Pillar Security Architecture (七支柱安全架构)**
+1. **Dynamic Context-as-Parameter Model** - 动态参数化安全控制
+2. **Supply Chain Security** - 防止Slop Squatting攻击(AI可能hallucinate的恶意包)
+3. **Ephemeral Sandboxes** - 临时隔离容器(如gVisor)
+4. **Zero Ambient Authority** - JIT(Just-In-Time)令牌,最小权限原则
+5. **Vibe Diff** - 将复杂代码翻译为自然语言供人类审查
+6. **Agentic Defense Triad** - 红/蓝/绿三队防御
+7. **Observability** - OpenTelemetry追踪意图漂移(Intent Drift)
+
+### **4. Slop Squatting (垃圾挤占)**
+攻击者预测AI会hallucinate的包名,提前注册恶意包。需要:
+- 对生成代码进行静态扫描
+- 网络隔离的沙箱执行
+- 白名单管理
+
+### **5. The Confused Deputy Problem (混淆委托问题)**
+当权限过高的Agent被提示注入攻击操纵时执行未授权命令。防御:
+- JIT令牌的scope downscoping
+- 执行前的人工审查(Vibe Diff)
+
+### **6. Fragile Success Traps (脆弱的成功陷阱)**
+Agent"聪明地绕过问题"而非真正解决。例:
+- 要求优化数据库查询 → Agent直接加载100k行到内存
+- 看起来通过了测试,实际上制造了更大问题
+
+---
+
+## 📋 第三框架：术语表 Terminology Table
+
+| 英文术语 | 日本語 | 中文翻译 | 解释 |
+|---------|--------|---------|------|
+| **Effective Trust** | 効果的信頼 | 有效信任 | 持续验证的动态信任度量,不是一次性部署检查 |
+| **Trajectory** | 軌跡 | 轨迹/路径 | Agent执行过程中的完整步骤序列和推理过程 |
+| **Vibe Diff** | ヴァイブ差分 | 振动差异/可读化代码差异 | 将复杂编译代码转换为自然语言进行人类审查 |
+| **JIT Token** | ジャストイン時刻トークン | 即时令牌 | 在沙箱执行时才生成的短生命周期凭证 |
+| **Sandboxing** | サンドボックス | 沙箱隔离 | 在隔离容器(如gVisor)内执行代码以限制系统访问 |
+| **Slop Squatting** | スロップスクワッティング | 垃圾挤占 | 攻击者注册AI可能会hallucinate的包名进行攻击 |
+| **Confused Deputy** | 混乱副官問題 | 混淆委托问题 | 权限过高的Agent被操纵执行未授权操作 |
+| **Red Team** | レッドチーム | 红队 | 主动注入对抗性提示的Agent(攻击角色) |
+| **Blue Team** | ブルーチーム | 蓝队 | 监控运行时Agent行为和物料清单的Agent(观察角色) |
+| **Green Team** | グリーンチーム | 绿队 | 隔离异常并自动修复的Agent(修复角色) |
+| **Zero Ambient Authority** | ゼロアンビエント権限 | 零环境权限/无环境权限 | 系统设计使Agent默认无任何权限,只在需要时授予 |
+| **Intent Drift** | インテントドリフト | 意图漂移 | Agent的行为偏离用户原始意图的现象 |
+| **Agent BOM** | エージェント部品表 | Agent物料清单 | Agent预期行为和边界的规范 |
+| **Fragile Success** | 脆弱な成功 | 脆弱的成功 | 输出正确但推理过程错误的危险失败模式 |
+| **Open Telemetry** | オープンテレメトリー | 开放遥测 | 标准化的追踪框架,记录Agent执行的每一步 |
+| **LLM as Judge** | 審判官としてのLLM | LLM作为评判官 | 使用另一个LLM评估Agent推理和轨迹是否对齐 |
+| **Guard Rails** | ガードレール | 护栏 | 限制Agent行为范围的约束和检查机制 |
+| **Dynamic Trust Score** | 動的信頼スコア | 动态信任评分 | 基于观察的漂移行为实时调整的信任度量 |
+| **Context-as-Parameter** | コンテクストパラメータ | 上下文参数化 | 动态设置安全参数而非静态配置 |
+| **Observability** | 可観測性 | 可观测性 | 通过追踪记录完整系统行为的能力 |
+
+---
+
+## 🔗 第四框架：技术关系图 Technical Relationship Map
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  EFFECTIVE TRUST FRAMEWORK                   │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+        ┌───────────────────┼───────────────────┐
+        ↓                   ↓                   ↓
+    ┌────────────┐    ┌────────────┐    ┌────────────┐
+    │  SECURITY  │    │ EVALUATION │    │OBSERVABILITY│
+    └─────┬──────┘    └─────┬──────┘    └─────┬──────┘
+          ↓                 ↓                  ↓
+    
+    ┌─────────────────────────────────────────────────┐
+    │   SEVEN-PILLAR SECURITY ARCHITECTURE            │
+    ├─────────────────────────────────────────────────┤
+    │ 1. Dynamic Context-as-Parameter Model           │
+    │ 2. Supply Chain Security (Slop Squatting防护)   │
+    │ 3. Ephemeral Sandboxes (gVisor隔离)            │
+    │ 4. Zero Ambient Authority (JIT令牌)            │
+    │ 5. Vibe Diff (人类可读化)                       │
+    │ 6. Agentic Defense Triad (红/蓝/绿队)         │
+    │ 7. Observability (OpenTelemetry追踪)          │
+    └─────────────────────────────────────────────────┘
+              ↓
+    ┌─────────────────────────────────────────────────┐
+    │   TRAJECTORY-AWARE EVALUATION PIPELINE          │
+    ├─────────────────────────────────────────────────┤
+    │ 前评估:   Plan Validation (LLM检查计划)       │
+    │ 执行中:   Tool Call Logging (工具序列追踪)     │
+    │ 执行后:   Intent Alignment Check (意图对齐)     │
+    │ 生产环:   Continuous Monitoring (持续监测)     │
+    └─────────────────────────────────────────────────┘
+              ↓
+    ┌─────────────────────────────────────────────────┐
+    │   GUARDRAILS COMPOSITION (护栏组合)             │
+    ├─────────────────────────────────────────────────┤
+    │ AI-based Rails:  LLM as Judge, Agent as Judge  │
+    │ Deterministic:   Network Isolation, Token Scope│
+    │ Human-in-Loop:   Vibe Diff for Critical Actions│
+    │ Automated Tests: Kaggle Agent Exams            │
+    └─────────────────────────────────────────────────┘
+              ↓
+    ┌─────────────────────────────────────────────────┐
+    │   RED-BLUE-GREEN TEAM DEFENSE CYCLE            │
+    ├─────────────────────────────────────────────────┤
+    │ RED:   Inject adversarial prompts              │
+    │   ↓                                             │
+    │ BLUE:  Monitor runtime behavior & BOM          │
+    │   ↓                                             │
+    │ GREEN: Quarantine & auto-fix security issues    │
+    │   ↓ (回到RED继续迭代)                          │
+    └─────────────────────────────────────────────────┘
+```
+
+---
+
+## 💼 第五框架：对数据分析行业的影响 Industry Impact Analysis
+
+### **1. 数据分析工作流的变化**
+- **传统模式**: 分析师手写SQL和Python → 手动验证结果
+- **Agent模式**: Agent自动生成和修复代码 → 需要轨迹可观测性确保数据血系正确
+- **关键需求**: 数据血系追踪(Data Lineage)集成到Trajectory评估
+
+### **2. 数据安全与隐私合规**
+- **PII防护**: Agent生成的代码可能无意泄露客户数据、社保号等
+- **自动扫描**: 需要在代码生成时即刻检测PII和敏感信息
+- **审计需求**: OpenTelemetry+Vibe Diff支持完整审计日志(符合GDPR/SOC2)
+
+### **3. 供应链风险管理**
+- **Slop Squatting威胁**: Agent可能install恶意数据分析库
+- **包管理安全**: 需要白名单+签名验证机制
+- **依赖审计**: 自动扫描所有生成的依赖树
+
+### **4. 成本优化与效率**
+- **Token节省**: 前期计划验证可减少错误代码生成(如Day 4例子中<$100自动批准)
+- **自动修复**: Green Team自动fix failing tests节省调试时间
+- **人力转移**: 从手写代码→设计Guard Rails和定义评估指标
+
+### **5. 数据质量管理**
+- **Fragile Success问题**: Agent可能"hack"数据质量指标而非真正改进
+- **多维评估**: 需要评估成本、延迟、准确性、数据完整性等多个维度
+- **持续监测**: 运行时动态信任评分可自动降级不可靠的Agent
+
+### **6. 监管与合规变化**
+- **责任追踪**: 需要证明每个数据操作都经过验证
+- **可解释性**: Vibe Diff使非技术审查者理解Agent决策
+- **故障恢复**: 清晰的基线版本和回滚机制
+
+---
+
+## 🎯 第六框架：面试重点 Interview Focus
+
+### **技术面试重点**
+
+**Q1: 如何在生产环境中部署不可信的AI Agent?**
+- 回答要点: Effective Trust不是一次性检查,需要多层防御
+- 展示: 七支柱架构、JIT令牌、沙箱隔离、动态信任评分
+- 案例: Confused Deputy Problem + Vibe Diff solution
+
+**Q2: 为什么仅测试输出还不够?**
+- 回答要点: Fragile Success Traps - 错误的推理也能产出正确结果
+- 展示: Trajectory-aware evaluation + OpenTelemetry
+- 实例: 数据库查询优化的"聪明绕过"案例
+
+**Q3: 如何设计多层Guard Rails?**
+- 回答要点: 质量>数量,需要分离的关注点
+- 展示: 不同维度的Judge(对齐度/成本/延迟),避免同质审查
+- 陷阱: 无限堆叠护栏导致的Inception问题
+
+**Q4: Red Team, Blue Team, Green Team的区别?**
+- 红队: 注入对抗提示(Adversarial)
+- 蓝队: 监控(Monitoring) + 物料清单(BOM)验证
+- 绿队: 隔离(Quarantine) + 自动修复(Auto-fix)
+- 关键: 防止单点失败,确保独立角色
+
+**Q5: 如何处理Slop Squatting?**
+- 原理: 攻击者注册Agent会hallucinate的包名
+- 防御: 白名单+签名验证+网络隔离沙箱
+- 扩展: 供应链安全的多层防御
+
+### **行为面试(Behavioral)重点**
+
+**S1: 描述一个遇到Security vs Speed trade-off的项目**
+- 展示: 如何平衡VIP Coding的速度和安全性
+- 学习: 为什么安全需要融入开发周期而非最后才加
+
+**S2: 如何处理跨团队对评估指标的不同看法?**
+- 展示: 与安全/合规/产品团队协调不同的Guard Rails
+- 学习: 理解每个维度的trade-off(成本/延迟/准确性)
+
+---
+
+## 📚 第七框架：学习笔记 Study Notes
+
+### **关键图表与公式**
+
+**Effective Trust Formula (概念模型)**
+```
+Effective Trust Score = 
+    (Security Controls × Identity Validation × Runtime Monitoring) 
+    / (Hallucination Risk + Intent Drift + Latency + Cost)
+
+其中:
+- Security Controls: 七支柱覆盖度 [0-1]
+- Identity Validation: 权限正确性 [0-1]
+- Runtime Monitoring: 可观测性覆盖 [0-1]
+- Hallucination Risk: 历史失败率 [0-1]
+- Intent Drift: 与User Intent偏离度 [0-1]
+```
+
+**Guard Rail Effectiveness Metric**
+```
+Guard Rail Value = Reduction in Failures / (Development Cost + Runtime Overhead)
+
+如果:
+- 值 > 1: 应该加入这个Guard Rail
+- 值 < 1: 应该移除/优化这个Guard Rail
+- 需要每次添加新层时重新评估
+```
+
+### **课程中的关键时间戳**
+
+| 时间 | 内容 | 关键概念 |
+|------|------|----------|
+| 1:36-1:48 | Days 1-3回顾 | Capabilities, Tools, Skills, Memory |
+| 1:48-2:27 | Effective Trust定义 | 信任是连续度量,不是二元门控 |
+| 2:27-3:05 | 评估侧重点 | 轨迹>输出;错误的过程也是失败 |
+| 3:12-6:02 | 七支柱安全架构 | 完整的防御框架 |
+| 6:40-12:51 | Q&A第1部分 | 安全如何从gate变成enabler |
+| 13:02-16:03 | Q&A第2部分 | Trajectory评估的实施 |
+| 16:03-22:51 | Q&A第3部分 | 沙箱与JIT令牌详解 |
+| 23:03-29:34 | 社区Q&A | 护栏堆叠,数据校正反馈 |
+| 43:06-56:01 | 两个Code Labs演示 | 支出审批Agent + 安全购物Agent |
+| 56:14-1:00:45 | Pop Quiz | 5道题目检验理解 |
+
+### **学习路径建议**
+
+1. **Day 1**: 播客 + 白皮书概览(15分钟)
+2. **Day 2**: 观看视频核心部分(0:00-6:32)
+3. **Day 3**: 深度理解七支柱(3:12-6:02)
+4. **Day 4**: 手做Code Labs(1小时)
+5. **Day 5**: 复习Pop Quiz + 阅读Whitepaper完整版
+
+---
+
+## ✓ 第八框架：检验题 & 延伸学习 Verification & Extension
+
+### **检验题 Verification Questions**
+
+**基础级 (Level 1)**
+
+1. Effective Trust与传统软件信任的核心区别是什么?
+   - 答案: 传统=二元(通过/失败), Agent=连续度量(需持续验证)
+
+2. 为什么仅测试Agent输出不够?
+   - 答案: Fragile Success Traps - 错误过程也能产出正确结果
+
+3. 什么是Slop Squatting? 如何防御?
+   - 答案: 攻击者注册AI会hallucinate的包名; 防御=白名单+网络隔离
+
+4. Red/Blue/Green Team分别做什么?
+   - 答案: 红=攻击(Injection), 蓝=观察(Monitoring), 绿=修复(Fixing)
+
+5. OpenTelemetry在Agent评估中的作用?
+   - 答案: 记录完整轨迹(工具调用、参数、响应),支持事后分析
+
+**中级 (Level 2)**
+
+6. 设计一个避免"护栏无限堆叠"的Guard Rails架构
+   - 答案: 确保每层有独特维度(对齐度/成本/延迟), 使用不同LLM/提示
+
+7. 如何区分"Agent Hallucination"和"User Intent Misalignment"?
+   - 答案: 前者=模型输出错误; 后者=推理逻辑背离用户需求; 都需轨迹分析
+
+8. JIT Token如何实现Zero Ambient Authority?
+   - 答案: 令牌仅在沙箱执行时生成,scope限制到具体数据源,生命周期=沙箱执行时间
+
+9. Vibe Diff适用的场景和限制?
+   - 答案: 场景=关键决策需人工审查; 限制=性能开销,非所有操作都需要
+
+10. 如何从用户纠正数据(User Corrections)提取永久Guard Rail?
+    - 答案: 聚类→根因分析→加入automated tests→持续监测
+
+**高级 (Level 3)**
+
+11. 在不同行业(金融/医疗/零售)中,Effective Trust评分的维度应如何调整?
+    - 答案: 权重不同; 医疗强调安全性; 金融强调审计性; 零售强调成本
+
+12. 如何评估一个Guard Rail的真实价值?
+    - 答案: Value = (Prevented Failures × Cost/Failure) / (Dev Cost + Runtime Overhead)
+
+13. Agent自动修复(Green Team)的可靠性如何验证?
+    - 答案: 需要独立的验证Agent,避免相同LLM的同质性偏差
+
+---
+
+### **延伸学习资源**
+
+**必读资源**
+- 🔗 Whitepaper: "Vibe Coding Agent Security and Evaluation"
+- 🎙️ Podcast: Unit 4 Companion Podcast Summary
+- 🏠 Code Labs:
+  1. Expense-Approval Agent (Human-in-the-Loop)
+  2. Secure AI Shopping Assistant
+
+**推荐阅读**
+- Control Theory在安全系统中的应用
+- Open Telemetry标准文档
+- NIST AI Risk Management Framework
+- SolarWinds供应链安全事件案例研究
+
+**扩展话题**
+1. **Agent内存管理** - 长期运行的Agent如何避免Context污染
+2. **多Agent协作安全** - 多个Agent交互时的信任链
+3. **对抗性提示防御** - 最新的Prompt Injection技术
+4. **成本-安全-速度三角** - 在现实约束下的trade-off决策
+5. **Agent热部署** - 无停机更新Guard Rails
+
+**实战项目建议**
+- 【中等难度】为现有ML Pipeline增加Agent执行层+Guard Rails
+- 【高难度】构建一个自监管的Agent系统(使用Red-Blue-Green Teams)
+- 【研究向】分析不同行业的Effective Trust定义差异
+
+---
+
+## 🗣️ 第九框架：日本工作常用表达 & 数据分析应用场景
+
+### **日本工作常用表达**
+
+#### **会议和讨论中的表达**
+
+| 英文 | 日本語 | 用途 |
+|------|--------|------|
+| **This is a critical issue** | 「これは重大な問題です」| 在会议上强调优先级 |
+| **Can you break this down?** | 「これを詳しく説明していただけますか?」| 要求详细解释 |
+| **What's the root cause?** | 「根本的な原因は何ですか?」| 追踪问题根源 |
+| **Let's move to production** | 「本番環境に移行しましょう」| 部署决策 |
+| **We need to roll back** | 「ロールバックが必要です」| 紧急回滚 |
+| **Set a baseline version** | 「ベースラインバージョンを設定してください」| 建立稳定版本 |
+| **What's the trade-off?** | 「トレードオフは何ですか?」| 分析利弊 |
+| **Keep this in audit log** | 「監査ログに記録しておいてください」| 合规要求 |
+| **We need human approval** | 「人間による承認が必要です」| 决策流程 |
+
+#### **技术团队沟通**
+
+| 英文 | 日本語 | 用途 |
+|------|--------|------|
+| **Deploy to sandbox first** | 「まずサンドボックスにデプロイしてください」| 测试流程 |
+| **Enable observability** | 「可視性を有効にしてください」| 启用监控 |
+| **Check the trajectory logs** | 「軌跡ログをチェックしてください」| 调试请求 |
+| **Implement guard rails** | 「ガードレールを実装してください」| 安全要求 |
+| **What's the failure rate?** | 「失敗率は何%ですか?」| 性能指标 |
+| **Token efficiency matters** | 「トークン効率が重要です」| 成本控制 |
+| **Automate threat detection** | 「脅威検出を自動化してください」| 安全自动化 |
+| **Cluster these errors** | 「これらのエラーをグループ化してください」| 问题分析 |
+
+### **数据分析行业应用场景**
+
+#### **场景 1: 数据清洗Agent**
+
+**传统方式**:
+```
+数据分析师 → 手写Python清洗脚本 → 手动验证 → 部署到生产
+```
+
+**Agent方式 + Guard Rails**:
+```
+用户需求 → Agent生成清洗脚本
+    ↓ (Guard Rail 1)
+PII扫描 → 检查是否泄露客户信息
+    ↓ (Guard Rail 2)
+轨迹评估 → 验证清洗逻辑是否与用户需求对齐
+    ↓ (Guard Rail 3)
+成本优化 → 评估数据处理成本是否在预算内
+    ↓ (Guard Rail 4)
+沙箱执行 → JIT令牌限制数据源访问
+    ↓ (Guard Rail 5)
+人工审查(如果需要) → Vibe Diff显示执行计划
+    ↓
+运行时监控 → 动态信任评分, 异常则自动回滚
+```
+
+**日本工作场景对话**:
+```
+上司: 「この清洗スクリプトの安全性をどう保証するんですか?」
+(这个清洗脚本的安全性怎么保证?)
+
+你: 「軌跡ログを確認して、ユーザーの意図と一致しているか
+    検証します。また、PII検出ガードレールで個人情報の
+    漏洩を防ぎます。本番環境では動的な信頼スコアで
+    監視します。」
+(我会检查轨迹日志,验证与用户需求一致性。
+ 通过PII检测护栏防止个人信息泄露。
+ 在生产环境中用动态信任评分持续监控。)
+```
+
+#### **场景 2: 分析报表Agent**
+
+**关键需求**:
+- **数据正确性**: 报表中的数字必须准确(Fragile Success trap风险高)
+- **审计可追溯**: 每个数据源和计算步骤可回溯
+- **权限隔离**: Agent只能访问授权的数据表
+
+**Guard Rails设计**:
+
+1. **前评估** (Plan Validation)
+   - 检查Agent生成的SQL是否只访问白名单表
+   - 验证聚合逻辑是否与业务规则对齐
+
+2. **执行中** (Runtime Monitoring)
+   - OpenTelemetry记录所有SQL执行
+   - 监控数据传输量是否超过预期
+
+3. **执行后** (Output Validation)
+   - LLM as Judge: 检查数字的合理性
+   - 与前一期的报表数据对比(异常检测)
+
+4. **生产环** (Continuous Evaluation)
+   - 动态信任评分: 如果数据偏差>5%, 降低信任等级
+   - Green Team自动调查和修复
+
+#### **场景 3: 成本优化Agent**
+
+**问题**: Agent可能"hack"成本指标(如删除有用但昂贵的特征)
+
+**解决**:
+- **多维评估**: 成本(Cost) + 模型精度(Accuracy) + 数据完整性(Completeness)
+- **轨迹检查**: 确保删除的特征确实是非必要的,而非优化假设
+- **人工审查**: 对影响业务的删除使用Vibe Diff
+
+**日本工作场景**:
+```
+部长: 「コスト削減できましたね。どうやって?」
+(成本削减了,怎么做到的?)
+
+你: 「Agentは使用頻度の低い特徴量を削除しました。
+    ただし、軌跡ログを確認して、それらの特徴が本当に
+    不要であることを確認しています。また、モデルの
+    精度も維持されていることを検証しました。」
+(Agent删除了使用频度低的特征。
+ 但我检查了轨迹日志确认这些特征确实不必要。
+ 并验证了模型精度也得到了维持。)
+```
+
+#### **场景 4: 数据治理与合规**
+
+**日本常见问题** (特别是大公司和金融机构):
+- PDPA合规 (Personal Data Protection Act)
+- 内部数据治理规定
+- 监管审查(金融厅/金融商品取引法)
+
+**Agent需要的Guard Rails**:
+1. **数据血系追踪**: 每行数据的来源和转换历史
+2. **访问日志**: 谁访问了什么数据,何时,为什么
+3. **自动脱敏**: 生成报表时自动隐藏敏感信息
+4. **审计报告**: Vibe Diff格式的执行记录供审计部门检查
+
+**日本工作表达**:
+```
+合規担当: 「データのトレーサビリティをどう確保しますか?」
+(数据的可追踪性怎么确保?)
+
+你: 「OpenTelemetryで全ステップを記録し、
+    データ血縁を完全に把握できます。また、
+    監査ログは改ざん不可の形式で保存します。」
+(用OpenTelemetry记录全步骤,完整掌握数据血系。
+ 审计日志用防篡改格式保存。)
+```
+
+#### **场景 5: 特征工程Agent**
+
+**业务背景**: ML模型需要每天自动生成新特征
+
+**Fragile Success风险**: 新特征可能"伪相关"(虚假的统计相关性)
+
+**Guard Rails**:
+1. **稳定性检查**: 特征在多个子集上的相关性是否一致
+2. **业务合理性**: 特征是否符合领域知识(如销售量不应与天气反向相关)
+3. **多模型验证**: 在多个模型上测试特征有效性
+4. **人工评审**: 关键特征由数据科学家签核
+
+#### **日本公司的"文化"适配**
+
+| 日本工作文化特点 | Agent开发的影响 |
+|-----------------|-------------------|
+| 强调流程和文档 | 需要详细的执行日志(Observability)和可审查性(Vibe Diff) |
+| 等级制度强 | Guard Rails中需要清晰的权限分离(Zero Ambient Authority) |
+| 风险厌恶 | 多层验证(多个Guard Rails),宁可牺牲速度也要确保安全 |
+| 长期关系 | 持续的信任评分(Effective Trust),而非一次性通过 |
+| 细致入微 | 轨迹级别的监控(Trajectory-aware),不只看最终结果 |
+
+---
+
+## 🎓 总结与应用建议
+
+### **学习完成度自测**
+
+- ✅ 理解Effective Trust的定义和在Agent中的重要性
+- ✅ 掌握七支柱安全架构的各个组件
+- ✅ 能够设计Trajectory-aware evaluation框架
+- ✅ 理解Red-Blue-Green Team防御机制
+- ✅ 了解Guard Rails设计的trade-offs
+- ✅ 能用日本工作表达讨论这些概念
+
+### **下一步行动**
+
+1. **本周**: 完成两个Code Labs实战
+2. **本周末**: 读完Whitepaper + 复习Pop Quiz
+3. **下周**: 在实际项目中应用(至少一个Guard Rail)
+4. **长期**: 关注供应链安全和评估框架的最新进展
+
+---
+
+**课程资源链接**:
+- 🔗 Code Labs: https://codelabs.developers.google.com/
+- 📄 Whitepaper: https://www.kaggle.com/whitepaper-vibe-coding-agent-security-and-evaluation
+- 🎙️ Podcast: Vibe Coding Agent Security Companion
+- 🎮 Discord: discord.gg/kaggle
