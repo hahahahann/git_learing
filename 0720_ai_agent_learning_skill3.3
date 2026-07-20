@@ -549,3 +549,500 @@ Single Agent + Skills Cost = Deployment Cost + Routing Logic + Evaluation
 | **安全第一** | 不要全委托给模型 | Gabriella: "Make instructions explicit, hard guarantees outside" |
 | **库级优化** | 比单Skill优化更重要 | 消除重叠,避免模型困惑 |
 | **版本管
+
+# DAY 3 AI Agents: Skills管理与架构设计 - 完整分析（续）
+
+## 🗣️ 第八框架：检验题 & 延伸学习 Verification & Extension
+
+### **检验题 Verification Questions**
+
+**基础级 (Level 1)**
+
+1. **Agent Skills的标准文件结构是什么？**
+   - 答案: 必需skill.md + 可选scripts、references、assets组成的文件夹
+   - 深度: skill.md应包含Front Matter(名称、描述)和执行指令
+
+2. **什么是Progressive Disclosure?为什么重要？**
+   - 答案: Agent启动时仅加载轻量元数据(~50 tokens),需要时才加载完整指令
+   - 效果: 100个Skills无需加载所有100个完整指令,Context保持精简
+
+3. **Context Rot的根本原因是什么？**
+   - 答案: 过多静态指令堆积在系统提示中,导致LLM关注力衰减(buried instructions被忽视)
+   - 表现: Agent选错Tool、忘记早期指令、hallucinate
+
+4. **Skill Registry的四层信任等级是什么？**
+   - 答案: Built-in(内置) > Official(官方) > Trusted(受信) > Community(社区)
+   - 关键: Community需要Skill Inspector扫描和Skill Card验证
+
+5. **什么是Slop Squatting攻击？**
+   - 答案: 攻击者预注册AI会hallucinate的包名(如预测Agent会生成"data_analyysis"),然后发布恶意代码
+   - 防御: Skill Registry信任等级 + Skill Inspector代码扫描
+
+**中级 (Level 2)**
+
+6. **Tool、MCP、Skill三者的边界如何划分？**
+   - Tool: What is the single action? (动词,如send_message)
+   - MCP: What can I reach? (连接逻辑、认证、数据访问)
+   - Skill: How do I go about doing it? (流程、条件、域知识)
+   - 验证方法: 删除Skill指令后,模型仍能执行(虽然笨拙)=边界清晰
+
+7. **何时应该选择单Agent+多Skills而非多Agent?**
+   - 答案: 默认单Agent+多Skills,仅在以下情况分裂:
+     - 需要并行处理
+     - Agent间有复杂通信
+     - 需要不同"角色分工"
+   - 反例: 100个SOP = 1个Agent+100个Skills,不是100个Agent
+
+8. **为什么说"Context Window不是数据库"?**
+   - 答案: 不应将所有状态堆积到提示中(会导致Context爆炸)
+   - 正确做法: 状态→File Bus(外部存储),模型仅处理推理逻辑
+   - 好处: 可调试性、可观测性、高性能
+
+9. **Hierarchical Routing相比Flat Routing的优势?**
+   - 问题诊断: 100个相似Skill = Distractors增多 → 选择准确性↓
+   - 解决: 分层路由 → Router选宽泛类别 → Profiling筛选10-15个Skill → 模型仅见Filtered List
+   - 核心: 问题是重叠,不是大小
+
+10. **Skill版本更新如何防止Hallucination?**
+    - 反模式: 在提示中调和旧记忆(v1)和新Skill(v2)
+    - 正确做法: 
+      1. 分离Memory(剧集式)和Skill(程序式)
+      2. DAG Hard Reset: 卸载旧指令,加载新Profile
+      3. Fail Loud: Agent告知用户版本不匹配
+
+**高级 (Level 3)**
+
+11. **设计一个跨100个部门的Skill库,如何避免选择准确性问题?**
+    - 答案: 组合使用多个策略:
+      1. Hierarchical Routing: 先按部门分类
+      2. Skill Library优化: 消除重叠的Skills(如两个"数据清洗")
+      3. Evaluation Metrics: Pass@K确保质量
+      4. 人工Spot Checking: 定期随机验证
+    - 关键: 库级优化>单Skill优化
+
+12. **如何评估一个新Skill是否准备好进入"Action Allowed"信任等级?**
+    - 答案: 需要以下全部条件:
+      - Golden dataset review (黄金数据集审查)
+      - Manual spot checking (人工抽查)
+      - Red teaming (对抗性测试)
+      - Sustained evaluation across multiple runs (多次运行的持续评估)
+    - vs简单的"一次成功" = 不足以信任
+
+13. **Skill Inspector应该包含哪些核心扫描功能?**
+    - 答案:
+      1. 代码漏洞扫描 (Vulnerability Scan) - SQL注入、内存溢出
+      2. 提示注入检查 (Prompt Injection Check) - 是否有jailbreak尝试
+      3. 密钥检测 (Secret Detection) - 硬编码API Key、密码
+      4. Cryptographic Signing - 追踪版本更新历史
+      5. 权限审计 - Skill访问了什么数据资源
+    - 注: 这些是社区Skill的进入条件
+
+---
+
+## 🎓 延伸学习资源 Extension Learning
+
+### **推荐阅读**
+
+**必读资源**:
+- 📄 Whitepaper: "Agent Skills" - 完整版(深入讲解Progressive Disclosure)
+- 🎙️ Podcast: Unit 3 Companion Podcast - 对讲者观点的总结
+- 🔗 Open Standards: agentskills.io - 查看官方标准
+- 📚 Real-world Example: 白皮书中的多Agent vs单Agent架构案例
+
+**扩展话题**:
+1. **Meta Skills** - Agent通过观察执行追踪自动生成Skills(前沿研究)
+2. **Skill Composition** - 如何组合多个Skills实现复杂工作流
+3. **Distributed Skills** - Skills跨多个IDE/系统的互操作性
+4. **Cost-Performance Tradeoff** - Skill大小vs Context压力的平衡
+5. **Safety in Skill Libraries** - 如何在社区库中防止恶意代码传播
+
+### **实战项目建议**
+
+| 难度 | 项目 | 学习目标 |
+|------|------|---------|
+| **初级** | 为日常任务创建3-5个简单Skill | 理解skill.md结构,Progressive Disclosure的实际效果 |
+| **中级** | 构建一个跨5个部门的Skill库,含路由逻辑 | Hierarchical Routing、库级优化、重叠消除 |
+| **高级** | 设计支持100+Skills的系统,含Skill Inspector和评估框架 | 完整的安全、版本管理、评估流程 |
+| **研究向** | 实现Meta Skills原型 - Agent观察成功追踪后自动优化Skill | 前沿方向,涉及执行追踪分析和自动优化 |
+
+### **与其他Day的连接**
+
+```
+DAY 1: 基础 (agents reach outward)
+  ↓
+DAY 2: 工具与协议 (MCP, A2A)
+  ↓
+DAY 3: 技能管理 ← 你在这里 (agents manage what they know)
+  ↓
+DAY 4: 安全与评估 (can we trust them in production?)
+  ↓
+DAY 5: 生产级系统 (spec-driven, observable, scalable)
+```
+
+**DAY 3与其他的关系**:
+- **DAY 2→3**: MCP提供"手臂"(reach), Skills提供"大脑"(manage knowledge)
+- **DAY 3→4**: 安全必须从Skill层开始(Skill Inspector、信任等级)
+- **DAY 3→5**: 生产级Skills = 经过Red Teaming和Evaluation的Skills
+
+---
+
+## 🌍 第九框架：日本工作表达 & 数据分析应用场景
+
+### **日本工作常用表达**
+
+#### **系统设计讨论中的关键表现**
+
+| 英文 | 日本語 | 用途 | 场景 |
+|------|--------|------|------|
+| **Separation of Concerns** | 関心の分離 | 架构原则 | "スキルとツールの関心を分離しましょう" |
+| **Ask WHY** | なぜを問う | 决策方法 | "なぜこのアーキテクチャを選ぶのか?" |
+| **Trade-off** | トレードオフ | 选择困境 | "パフォーマンスとメンテナンスのトレードオフ" |
+| **Clear Boundary** | 明確な境界 | 设计要求 | "スキルとMCPの明確な境界が必要" |
+| **Start Simple** | シンプルに始める | 设计原则 | "まずシングルエージェントで始めましょう" |
+| **Fail Loud** | 大声で失敗 | 错误处理 | "エラーはユーザーに見える形で失敗すべき" |
+| **Library-level Optimization** | ライブラリレベル最適化 | 优化范围 | "スキル単位ではなく、ライブラリ全体を最適化" |
+| **Distractor** | 邪魔者/干渉要素 | 问题诊断 | "100個のスキルがあると、似たスキルが邪魔になる" |
+| **Spot Checking** | スポットチェック | 质量保证 | "本番前にランダムにチェックしましょう" |
+| **Red Teaming** | レッドチーミング | 安全测试 | "本番環境の前にレッドチーム対抗テスト" |
+| **Golden Dataset** | ゴールデンデータセット | 基准数据 | "ゴールデンデータセットで評価してください" |
+| **Backward Compatibility** | 後方互換性 | 版本管理 | "v2はv1と互換性を保つべき" |
+| **Hard Reset** | ハードリセット | 状态管理 | "新しいバージョンを切り替える時、ハードリセットが必要" |
+
+#### **会议中的表达**
+
+```
+【設計レビュー時】
+QA: 「このスキルの役割は何ですか?」
+    (This skill的角色是什么?)
+
+回答1（完美）:
+「このスキルはデータ品質チェックの"知識"を提供します。
+ツールはSQLを実行する"動作",MCPはデータベース接続です。
+削除してもモデルは実行できますが、手順は不完全になります。」
+
+(This skill提供数据质量检查的"知识"。
+ Tool是执行SQL的"动作",MCP是数据库连接。
+ 删除Skill指令后模型仍能执行,但步骤不完整。)
+
+回答2（需要改进）:
+「複数のスキルが必要です。」
+(需要多个技能)
+
+反馈:「OK,では設計をもう一度確認しましょう。」
+```
+
+```
+【多エージェント vs 単一エージェント議論】
+PM: 「スキル数が100になったら、マルチエージェントに
+    分割すべきでは?」
+
+正解:
+「いいえ。スキル数が増えてもシングルエージェント
+ +スキルで大丈夫です。問題は数ではなく、
+ スキル間の重複(ディストラクター)です。
+ 分層ルーティングで解決できます。」
+
+(不。即使Skills增加到100个,单Agent+Skills架构仍然可行。
+ 问题不是数量,而是Skills之间的重叠(干扰)。
+ 分层路由可以解决。)
+```
+
+### **数据分析行业应用场景**
+
+#### **场景 1: 银行风险管理团队的Skill库**
+
+**背景**: 大型银行需要统一风险分析流程,但各部门有特殊需求
+
+**Skills库结构**:
+```
+bank-risk-skills/
+├── credit_risk_skills/
+│   ├── default_probability_skill.md        (通用)
+│   ├── credit_portfolio_analysis_skill.md  (通用)
+│   └── client_specific_risk_skill.md       (风控部特化)
+├── market_risk_skills/
+│   ├── vat_calculation_skill.md            (通用)
+│   ├── stress_testing_skill.md             (通用)
+│   └── fx_risk_skill.md                    (交易部特化)
+└── common_skills/
+    ├── data_validation_skill.md            (全行共用)
+    ├── reporting_skill.md                  (全行共用)
+    └── audit_logging_skill.md              (合规)
+```
+
+**应用流程**:
+```
+用户请求: "客户A的总风险敞口是多少?"
+     ↓
+Agent启动 (仅加载~5k tokens元数据)
+     ↓
+Router选择: "这是风险聚合问题"
+     ↓
+Profiling: 加载credit + market + common skills
+     ↓
+Agent执行:
+  1. credit_probability_skill (通用,所有部门用)
+  2. market_vat_skill (通用)
+  3. client_specific_risk_skill (风控部特化)
+  4. audit_logging_skill (合规)
+     ↓
+输出: 可追踪的风险敞口,含审计日志
+```
+
+**日本金融机构的benefit**:
+- **合规**: 每步都有skill.md文档,满足金融庁审查
+- **一致性**: 全行使用同一版本的default_probability_skill
+- **成本**: 新增Skill不需新部署,仅添加文件
+
+**日本工作表达**:
+```
+部長: 「新しいリスク指標を追加したいのですが、
+       時間がかかりますか?」
+      (新增风险指标需要多久?)
+
+回答（以前 - Before Skills）:
+「5部門に新しいスクリプトを配布して、
+ 各部がテストして...2ヶ月かかります。」
+ (分发给5个部门,各部测试...需要2个月)
+
+回答（現在 - After Skills）:
+「いいえ。新しいスキルを作成して、
+ ライブラリに追加するだけです。
+ 全エージェントが自動で使えます。
+ スポットチェックで1週間です。」
+ (不。创建新Skill添加到库中即可。
+  所有Agent自动使用。1周内Spot Checking完成。)
+```
+
+#### **场景 2: 电商平台的数据分析Agent**
+
+**问题**: 销售、库存、市场部都需要数据分析,但工作流不同
+
+**Skill库设计** (避免重叠):
+
+| Skill | 所有者 | 使用者 | 原因 |
+|-------|--------|--------|------|
+| `data_source_connection` | 数据部 | 全部 | 基础,所有部门通用 |
+| `data_cleaning_retail` | 销售部 | 销售、库存 | 零售数据的特殊清洗 |
+| `data_cleaning_logistics` | 库存部 | 库存、市场 | 物流数据的特殊清�洗 |
+| `sales_forecasting` | 销售部 | 销售部 | 销售预测(销售部特化) |
+| `inventory_optimization` | 库存部 | 库存部 | 库存优化(库存部特化) |
+| `market_trend` | 市场部 | 市场部 | 市场趋势分析(市场部特化) |
+| `reporting_unified` | 数据部 | 全部 | 统一报告格式 |
+
+**避免的错误**:
+```
+❌ 做法: 为每个部门创建完整的Skill复制
+    data_cleaning_sales (销售用)
+    data_cleaning_inventory (库存用)
+    data_cleaning_market (市场用)
+    
+问题: 三个Skills 50%相同 → Distractors增加 → 路由准确性↓
+
+✅ 做法: 识别共同部分和特化部分
+    data_source_connection (共同)
+    data_cleaning_retail (销售+库存共享)
+    data_cleaning_logistics (库存+市场共享)
+    [部门特化Skill]
+```
+
+**质量控制**:
+```
+Skill上线要求 (Before Production):
+  ✅ Golden dataset: 100个真实案例全通过
+  ✅ Pass@K: Pass@3(3次运行中至少1次准确)
+  ✅ Spot checking: 随机验证10个结果
+  ✅ Red teaming: 尝试5个"搞坏Skill"的方式
+  ✅ Library eval: 确保与其他Skill无冲突
+
+如果新版本更新:
+  ❌ 不做: 直接升级 (可能破坏依赖)
+  ✅ 做: 
+    1. Skill Card显示变更(Changelog)
+    2. Fail Loud: 告知Agent "你用的是v1,但现在v2"
+    3. 用户选择: 保守(v1)还是试试新版(v2)
+```
+
+#### **场景 3: 医疗数据分析 (HIPAA合规)**
+
+**特殊需求**: PII保护,审计追踪,权限隔离
+
+**Skill设计**:
+```
+medical-analysis-skills/
+├── patient_data_access_skill.md
+│   Front Matter:
+│   - 访问权限: "仅医生和数据分析师"
+│   - 数据脱敏: "自动隐藏患者姓名"
+│   - 审计: "所有访问记录到不可篡改日志"
+│
+├── diagnosis_pattern_skill.md
+│   - 输入: 症状数据(脱敏后)
+│   - 输出: 可能诊断列表
+│   - 安全: 不返回原始患者ID
+│
+└── compliance_audit_skill.md
+    - 记录: 谁访问了什么数据
+    - 时间: 何时访问
+    - 结果: 做了什么操作
+    - 签名: cryptographic proof
+```
+
+**日本医疗机构的应用**:
+```
+规制: 「患者データへのアクセスログを見せてください」
+     (Show me access logs for patient data)
+
+回答:
+「各スキルにaudit_logging_skillが組み込まれています。
+ 改ざん防止の暗号署名付きです。」
+
+(每个Skill都内置了audit_logging_skill。
+ 带有防篡改的密码签名。)
+```
+
+#### **场景 4: 金融数据管制(データガバナンス)**
+
+**问题**: 不同数据源的定义不统一,导致分析结果冲突
+
+**解决** (通过Skill):
+```
+shared-definitions-skills/
+├── customer_definition_skill.md
+    内容: "何が顧客か" (什么是客户)
+    - 法人客户的条件
+    - 个人客户的条件
+    - 临界情况的处理
+    版本: v2.1 (2026年4月更新)
+    
+├── revenue_definition_skill.md
+    内容: "何が売上か" (什么是收入)
+    - 实现收入vs应计收入
+    - 退款的处理
+    - 跨期问题
+    版本: v3.0 (新国际会计准则)
+    
+└── risk_metric_skill.md
+    内容: "リスク指標の計算方法" (风险指标计算)
+    - VaR计算
+    - Stress Test场景
+    - 报告要求
+```
+
+**好处**:
+- **一致性**: 全行使用同一定义(v3.0)
+- **可追踪**: Skill Card显示作者、批准人、更新历史
+- **灵活迁移**: 新定义(v4.0)发布 → 可平行运行 → 逐步迁移
+- **审计**: 能追踪"这个报表用的是哪个版本的定义"
+
+#### **场景 5: 成本分析的场景(成本管理)**
+
+**问题**: 部门经理想要不同粒度的成本报告
+
+```
+cost-analysis-skills/
+├── cost_by_project_skill.md      (按项目)
+├── cost_by_department_skill.md    (按部门)
+├── cost_by_product_skill.md       (按产品)
+└── cost_by_customer_skill.md      (按客户)
+
+❌ 错误做法: 4个完全独立的Skills
+   问题: 数据口径不统一,报告冲突
+
+✅ 正确做法:
+   cost_base_skill.md (共用基础数据+计算逻辑)
+     ↓
+   [4个Skill] (仅不同的维度分组)
+```
+
+**库级优化**:
+```
+评估: 所有成本Skill的一致性
+  ✅ 相同数据源? (是)
+  ✅ 计算公式相同? (是,仅分组不同)
+  ✅ 总额汇总相等? (必须相等,否则Bug)
+
+版本管理:
+  新会计年度 → 成本定义变更
+  → cost_base_skill v2.0 发布
+  → 自动Fail Loud: "新会计年度,定义已变更"
+  → 用户确认: 使用新定义
+  → 旧报表可保留(用v1.0),新报表用v2.0
+```
+
+**日本企业特色**:
+```
+経理部長: 「去年のコストとことしのコストを比較できますか?」
+         (去年的成本和今年的能比较吗?)
+
+回答:
+「cost_base_skillのバージョンが異なります。
+ v1.0(去年)と v2.0(今年)の
+ 定義の違いを説明できます。
+ 例えば、減価償却の計算方法が変わりました。」
+
+(cost_base_skill的版本不同。
+ v1.0(去年)和v2.0(今年)的定义区别是...
+ 例如,折旧计算方法已变更。)
+```
+
+---
+
+## 📊 总结与应用建议
+
+### **学习完成度自测**
+
+- ✅ 理解Context Rot问题及Progressive Disclosure解决方案
+- ✅ 掌握Skill文件结构和跨IDE兼容性
+- ✅ 能够区分Tool、MCP、Skill的边界
+- ✅ 了解Skill Registry的安全验证机制(Skill Inspector、信任等级)
+- ✅ 理解单Agent+多Skills vs多Agent的决策框架
+- ✅ 掌握DAG编排和状态管理的最佳实践
+- ✅ 能够设计库级而非单Skill的优化策略
+- ✅ 理解Skill版本管理和Fail Loud的重要性
+- ✅ 能用日本工作表达讨论系统架构
+
+### **下一步行动**
+
+**本周**:
+1. 完成两个Code Labs(Antigravity + Agent CLI)
+2. 为实际工作创建3-5个Skills(无需高度复杂)
+3. 在Discord分享Skill库设计经验
+
+**下周**:
+1. 阅读完整Whitepaper,深入理解Meta Skills概念
+2. 设计一个包含10+个Skills的库,考虑重叠消除
+3. 准备Skill Inspector清单(代码审查)
+
+**长期**:
+1. 监测开源Skill库的发展(如GitHub上的agent-skills-hub)
+2. 参与社区Skill开发和验证
+3. 研究Meta Skills - Agent如何自动优化
+
+### **与业界趋势的关系**
+
+| 趋势 | DAY 3的贡献 |
+|------|-----------|
+| **Agent量产化** | Skills让Agent从"定制"→"可配置" |
+| **知识工作自动化** | Skill库是可复用知识的载体 |
+| **生产级AI系统** | Progressive Disclosure + 评估 = 可信赖的系统 |
+| **开源生态** | agentskills.io标准让Skills跨平台 |
+| **安全关键应用** | Skill Inspector + 红队测试 = 金融/医疗就绪 |
+
+---
+
+## 🔗 课程资源链接
+
+- 🔗 **官方标准**: https://agentskills.io
+- 📄 **Whitepaper**: "Agent Skills" (Kaggle上链接)
+- 🎙️ **Podcast**: Unit 3 Companion - Agent Skills Summary
+- 💻 **Code Lab 1**: Explore Skills in Antigravity
+- 💻 **Code Lab 2**: Build Agents with Agent CLI & ADK
+- 🎮 **Discord**: discord.gg/kaggle (社区讨论)
+- 🗂️ **开源库**: GitHub上的agent-skills-hub (参考实现)
+
+---
+
+**完成时间**: 2026年6月18日
+**课程进度**: DAY 3/5 完成 ✅
+**下一步**: DAY 4 - Security & Evaluation (最重要的一天)
