@@ -1,0 +1,468 @@
+虽然当前处理的 PDF 文档《Vibe Coding Agent Security and Evaluation》共有 **41 页**，篇幅较长，在单次回答中难以将所有细节无遗漏地全部呈现。为了保证整理质量与 8 个框架的深度，我同样将为您**分批次进行详细拆解**。
+
+下面为您提供 **第 1 - 12 页（引言与 Agent 7 柱安全架构基础篇）** 的详细分析与整理：
+
+---
+
+## 1. 内容概述 (1-12 页)
+
+这部分内容解答了 **什么是 Vibe Coding（感觉编码）与 Agentic Engineering（智能体工程）**，阐明了为什么传统确定性安全架构在 Agent 时代失效，并提出了 **“Effective Trust（有效信任）”** 以及作为核心 Harness（安全护栏/束缚）的 **7 柱安全架构 (7-Pillar Security Architecture)**。
+
+* **1-3 页**：封面、致谢名单及完整目录概览。
+
+
+* **4-5 页**：目录延续（红蓝绿三元防御组、观测与 Evaluation 评估框架）。
+* **6-8 页**：**引言与演进**。定义从描述意图的“Vibe Coding”到受控“Agentic Engineering”的演进；指出裸模型不是 Agent，只有加上包裹它的 Scaffolding/Harness（包含状态、工具和约束）后才成为 Agent。提出静态信任已失效，必须引入基于上下文与运行时状态的 **Effective Trust**。
+* **9-12 页**：**7 柱安全架构 (7-Pillar Security Architecture)**。详细拆解基础层：
+* **Pillar 1 Infrastructure**（gVisor 等内核级沙箱隔离与出口管控）；
+* **Pillar 2 Data**（CMEK 加密、mTLS 与向量库跨租户毒化防护）；
+* **Pillar 3 Model**（系统指令与 Prompt 的加密证明）；
+* **Pillar 4 App & Runtime**（LLM 防火墙、生命周期 Hook 和 Centralised Agent Gateway）；
+* **Pillar 5 IAM**（SPIFFE ID、Confused Deputy 解决、ABAC 与 JIT Token 降权）；
+* **Pillar 6 Observability & SecOps**（OpenTelemetry、ABA 行为分析及红蓝绿防御组）；
+* **Pillar 7 Governance**（EU AI Act 遵循、Plain-English 逻辑审查与 Risk-Stratified Attestation 签署）。
+
+
+
+---
+
+## 2. 核心知识点解释
+
+1. **Vibe Coding vs. Agentic Engineering**
+* **Vibe Coding（感觉编码）**：开发者仅用自然语言表达模糊意图（Vibe），并直接接受 AI 生成的所有代码。
+* **Agentic Engineering（智能体工程）**：AI 作为实现引擎，但在严格设计的边界（Boundary）与约束框架内运行。
+
+
+2. **Effective Trust（有效信任）与 Context-as-a-Perimeter**
+* **概念**：传统安全是静态的（编译通过、凭证有效即信任）。而在 Agent 系统中，Agent 拥有访问敏感 API 的自主权，必须将信任定义为根据供应链、身份、运行时行为动态计算的动态指标。
+* **Context-as-a-Perimeter**：从“静态身份边界”转变为根据当前运行上下文（Intent × User × Time）实时决定的“上下文边界”。
+
+
+3. **Confused Deputy Problem（困惑副官问题）与 SPIFFE ID**
+* **概念**：当 Agent 继承了高权限，但被外部注入的恶意提示词（Prompt Injection）欺骗去执行攻击者指定的未授权指令时，该 Agent 就变成了“困惑副官”。
+* **解法**：给每个 Agent 赋予独立且可加密验证的 **Agentic Identity**（如 SPIFFE ID），并通过 JIT（Just-In-Time） Token 进行实时最小权限降权。
+
+
+
+---
+
+## 3. 专业术语表 (Glossary)
+
+| 术语 (Term) | 全称 / 解释 | 应用场景/意义 |
+| --- | --- | --- |
+| **Vibe Coding** | 感觉编码 | 意图驱动的自然语言高速度开发模式。 |
+| **Harness / Scaffolding** | 安全脚手架/安全护栏 | 包裹模型、赋予其工具、状态与强制约束的运行环境。 |
+| **Effective Trust** | 有效信任 | 动态评估 Agent 供应链、身份与运行时行为的连续信任指标。 |
+| **gVisor Sandboxing** | 内核级轻量沙箱 | 用于隔离 Agent 运行生成的未验证代码，防止容器逃逸。 |
+| **Confused Deputy** | 困惑副官攻击 | 越权Agent被恶意上下文诱导执行非法操作的安全缺陷。 |
+| **Vibe Diff** | 意图文本差异比对 | 在高危操作前，将复杂代码自动翻译回 Plain-English 给人类审查。 |
+
+---
+
+## 4. 技术关系图 (Architecture & Relation)
+
+```text
++--------------------------------------------------------------------+
+|                         Human Developer Intent                     |
++--------------------------------------------------------------------+
+                                   |
+                                   v
++--------------------------------------------------------------------+
+|                       Model (LLM Foundation)                       |
++--------------------------------------------------------------------+
+                                   |
+                       [Wrapped inside Safety Harness]
+                                   |
+                                   v
++--------------------------------------------------------------------+
+|                 7-Pillar Secure Harness (Agent Runtime)             |
+|  - P1: Infrastructure (gVisor Sandbox & Egress Governance)        |
+|  - P2: Data (CMEK, mTLS, Tenant Partitioning)                      |
+|  - P3: Model (Prompt Integrity & Cryptographic Attestation)       |
+|  - P4: App/Runtime (LLM Firewall & Centralised Gateway)            |
+|  - P5: IAM (SPIFFE ID, ABAC & JIT Token Downscoping)              |
+|  - P6: Observability (Agent Behavioural Analytics & OpenTelemetry) |
+|  - P7: Governance (Plain-English Logic Review & Immutable Audit)   |
++--------------------------------------------------------------------+
+                                   |
+                                   v
++--------------------------------------------------------------------+
+|                        Target Environments / APIs                  |
++--------------------------------------------------------------------+
+
+```
+
+---
+
+## 5. 面试重点 (Interview Focus)
+
+* **面试题 1**：在 Vibe Coding 流行的大模型时代，为什么传统的静态 RBAC（基于角色的权限控制）不再适用？
+* *回答要点*：RBAC 依赖静态身份凭证。而 Agent 具备自主执行代码和调用 API 的能力，可能在持有合法 Token 的情况下被提示词注入欺骗（Confused Deputy）。因此必须转向以“上下文为边界（Context-as-a-Perimeter）”的动态 ABAC 与 JIT Token 降权机制。
+
+
+* **面试题 2**：7 柱架构中如何解决 Agent 运行代码的安全隔离问题？
+* *回答要点*：采用第 1 柱（Infrastructure）的 **Ephemeral Sandboxing（如 gVisor 内核级隔离）** 与 strict Network Egress Governance（网络出口管控），确保 Agent 迭代运行不确定性代码时无法逃逸至宿主机或任意向外非法外发数据。
+
+
+
+---
+
+## 6. 学习笔记
+
+1. **核心转变**：安全重心从“保护静态代码语法”转变为“保护包裹 AI 的 Harness（运行脚手架）”。
+2. **信任原则**：Zero Ambient Authority（零隐性权限），Agent 不应直接继承开发者的全局管理员权限，每次执行任务必须获取最小化的 JIT 凭证。
+3. **可解释性与治理**：通过 Plain-English 翻译（Vibe Diff）防止开发者因为看不懂 Agent 编写的复杂语法而盲目点击 Approve（确认疲劳）。
+
+---
+
+## 7. 检验题 (Quiz)
+
+1. **单选题**：在 Agent 安全防护中，“Confused Deputy（困惑副官）”主要发生在以下哪种情况？
+* A. 模型因 Token 长度不足而发生中断
+* B. 具备高权限的 Agent 被恶意 Prompt 诱导执行了未授权的操作
+* C. 数据库连接池满了导致 API 访问超时
+* D. 沙箱容器发生了内存溢出
+
+
+2. **简答题**：请解释为什么不能直接让 Agent 继承人类开发者的账号凭证？
+
+---
+
+## 8. 延伸学习 (Extended Topics)
+
+* **深入学习方向**：
+* **gVisor 与 WebAssembly (Wasm)** 沙箱隔离在 AI Code Execution 环境中的底层原理。
+* **SPIFFE/SPIRE** 在微服务与智能体身份标识中的实践应用。
+
+
+
+---
+
+## 9. 补充：日本工作常用表达 & 数据分析应用场景
+
+### 日本 IT / AI 现场常用表达 (ビジネス・現場用語)
+
+在日企讨论 Agent 安全架构与 AI 引入时的常用表达：
+
+* **ハーネス（Harness）/ 安全枠組み（あんぜんわくぐみ）**：Agent 安全脚手架/护栏。
+* **なりすまし・権限昇格（けんげんしょうかく）**：冒充与越权（Confused Deputy / Privilege Escalation）。
+* **サンドボックス隔離（かくり）**：沙箱隔离环境。
+* **動的権限付与（どうてきけんげんふよ）**：JIT Token Downscoping（动态最小权限降权）。
+* **プレーンイングリッシュ化 / 要約レビュー**：把复杂生成代码转化为平实文本进行审查（Vibe Diff / Plain-English Approval）。
+
+### 数据分析中的应用场景
+
+在数据工程与数据分析场景中，该安全框架可落地为：
+
+1. **RAG 向量数据库防毒化（Pillar 2 Data 应用）**
+* **场景**：数据分析 Agent 会读取公司知识库，通过强制 Tenant Partitioning（租户隔离）防止恶意导入的文档毒化 Vector Search，避免跨部门泄露数据。
+
+
+2. **JIT SQL 执行权限管控（Pillar 5 IAM 应用）**
+* **场景**：当 Data Agent 自动生成 SQL 进行探索分析时，系统只临时发给它对特定 Table 的 Read-only JIT 凭证，查询完毕立即销毁，防止误删库或拖库。
+
+接下来为您整理 **第 13 - 26 页（沙箱供应链防御、应用逻辑安全、身份鉴权与红蓝绿三元组演练篇）** 的详细拆解：
+
+---
+
+## 1. 内容概述 (13-26 页)
+
+这部分内容深入探讨了 Vibe Coding 场景下的具体攻防对抗细节，覆盖从底层运行沙箱到上层红蓝绿 Agent 运维防线：
+
+* **13-15 页**：**沙箱与供应链防御 (Pillars 1 & 4)**。强调动态生成的代码必须在内核级轻量沙箱（如 gVisor）中运行并及时复位状态；揭示了模型“幻觉依赖包”被黑客抢注（Slopsquatting）的供应链风险，并提出了只允许私有源/二进制授权（Binary Authorization）与非交互式出口管控（Egress Governance）。
+* **15-17 页**：**应用逻辑安全 (Pillar 4)**。指出 AI 编写的代码常有“重前端、轻后端”和“跳过行级安全（RLS）”的缺陷；提出 IDE 内只提示（Linter）、CI/CD 中做强校验（SAST/SCA）的原则；针对 MCP 协议探讨了 MCP Spoofing（服务器伪造）防范与 Centralised Agent Gateway 动态授权。
+* **18-20 页**：**身份、信任与高风险操作 (Pillar 5)**。解决“Confused Deputy”问题，主张给 Agent 分配专门的 Agentic Identity 而非借用人类凭证；执行零隐性权限（Zero Ambient Authority）与 JIT 动态 Token 降权；对高危操作引入硬件 MFA 与 Plain-English 的 **Vibe Diff** 审查。
+* **20-23 页**：**红蓝绿智能体安全演练 (Pillar 6)**。针对零宽字符/同形字等不可见载荷攻击（Invisible Payloads），引入 AI 安全三元组：**Red Team**（注入对抗）、**Blue Team**（ABA 行为分析与动态 AgBOM 清单监控）、**Green Team**（SOAR 隔离与自动重构修复代码）。
+* **24-26 页**：**可观测性与思维审计 (Pillars 6 & 7)**。通过追踪“Vibe Trajectory”监控意图漂移（Intent Drift），并设置有状态的断路器/熔断机制（Circuit Breakers）防止死循环或无限消耗资源。
+
+---
+
+## 2. 核心知识点解释
+
+1. **Slopsquatting（幻觉依赖包抢注攻击）**
+* **概念**：大语言模型在生成代码时经常会“幻觉”出不存在的第三方依赖包名称。攻击者通过监控 AI 输出和社区讨论，抢先在公开包管理器（如 PyPI/NPM）注册这些虚构包名并植入恶意代码。当 Agent 自动化安装依赖时就会直接中招。
+* **解法**：强制 Agent 仅从内部受信任的镜像源拉取依赖，并使用 Binary Authorization 校验数字签名与 SBOM 资产清单。
+
+
+2. **Zero Ambient Authority 与 JIT Token Downscoping**
+* **概念**：Agent 不应具有全局常驻的高级权限（Zero Ambient Authority）。
+* **机制**：当 Agent 动态编写并运行某个特定脚本时，安全脚手架仅为其发放对该任务精准作用域有效的临时凭证（JIT Downscoping），任务完成后 Token 立即失效。
+
+
+3. **Red, Blue, and Green Security Teaming（红蓝绿智能体防御组）**
+* **Red Team (Agent Attacker)**：主动向 Agent 注入“Adversarial Vibes”和隐藏在 RAG 上下文中的攻击指令，测试系统的防御边界。
+* **Blue Team (Agent Defender)**：基于 Agent 行为分析（ABA）与实时工具资产清单（AgBOM），监控 Agent 是否发生逻辑偏移或异常 API 调用。
+* **Green Team (Agent Fixer)**：一旦发现异常，不采取粗暴的杀死进程手段，而是执行“Stateful Quarantine（有状态隔离）”，在保留 Agent 短期记忆的前提下解绑其工具，并自动重构代码修复漏洞。
+
+
+
+---
+
+## 3. 专业术语表 (Glossary)
+
+| 术语 (Term) | 全称 / 解释 | 应用场景/意义 |
+| --- | --- | --- |
+| **Slopsquatting** | 幻觉依赖包抢注 | 攻击者抢注 LLM 幻觉出的依赖包名以传播恶意软件的攻击手段。 |
+| **MCP Spoofing** | MCP 协议服务器伪造 | 伪造 MCP 服务欺骗 Agent 获取高权或注入恶意载荷。 |
+| **Zero Ambient Authority** | 零隐性权限 | Agent 运行时默认没有任何预置权限，按需申请最小权限。 |
+| **Vibe Diff** | 意图文本差异比对 | 将 Agent 生成的复杂底层代码翻译为平实自然语言供人类确认。 |
+| **AgBOM** | Agent Bill of Materials | 智能体实时调用的工具、模型、数据源的动态资产清单。 |
+| **Stateful Quarantine** | 有状态隔离 | 保留内存上下文的同时剥夺离线工具调用权，以便后续审计或修复。 |
+
+---
+
+## 4. 技术关系图 (Architecture & Relation)
+
+```text
++--------------------------------------------------------------------+
+|                         Human Developer Vibe                       |
++--------------------------------------------------------------------+
+                                   |
+                                   v
++--------------------------------------------------------------------+
+|                    Agentic Execution Engine                        |
++--------------------------------------------------------------------+
+       |                                                    |
+ [Generates Code]                                  [Invokes MCP Tools]
+       |                                                    |
+       v                                                    v
++-------------------------------+          +-------------------------------+
+|  gVisor Ephemeral Sandbox     |          |  Centralised Agent Gateway    |
+|  - Resets state on each run   |          |  - MCP Spoofing Defense       |
+|  - Internal Repo / SBOM Check |          |  - JIT Downscoped Token       |
++-------------------------------+          +-------------------------------+
+       |                                                    |
+       +------------------------+---------------------------+
+                                |
+                                v
++--------------------------------------------------------------------+
+|               Continuous SecOps Triad (Pillar 6)                   |
+|  - Red Team:  Injects Adversarial Vibes / Tests Jailbreaks         |
+|  - Blue Team: ABA Monitoring & AgBOM Tracking                      |
+|  - Green Team: Stateful Quarantine & Auto-Refactoring Fix          |
++--------------------------------------------------------------------+
+
+```
+
+---
+
+## 5. 面试重点 (Interview Focus)
+
+* **面试题 1**：什么是 Slopsquatting 攻击？在企业开发 AI Agent 时如何防御？
+* *回答要点*：Slopsquatting 是利用大模型幻觉不存在的第三方依赖包名称，攻击者提前抢注恶意包的漏洞。防御方法包括：强制使用企业私有镜像仓库、开启 SBOM 签名校验、以及限制 Agent 的网络访问为非交互式私有代理。
+
+
+* **面试题 2**：对 Agent 进行高危操作的审批时，传统的“Approve/Deny”按钮有什么缺陷？如何改进？
+* *回答要点*：传统按钮容易导致开发者由于看不懂复杂的生成代码而产生“审批疲劳（Confirmation Fatigue）”，直接盲点击通过。改进方案是引入“Vibe Diff”机制，将底层代码改动自动翻译为 Plain-English 的操作总结，并配合硬件 MFA（如 USB 安全钥匙）进行物理确认。
+
+
+
+---
+
+## 6. 学习笔记
+
+1. **代码生成不等于安全代码**：Vibe coding 生成的代码往往侧重“能跑就行”，极易忽略后端行级安全（RLS）和鉴权逻辑，必须在 CI/CD 中通过 SAST/SCA 做无差别校验。
+2. **优雅的处置手段**：检测到 Agent 异常时，传统的“直接 Kill 容器”会导致关联 API 状态损坏，采用“Stateful Quarantine”保留 Agent 状态并剥夺工具访问权更符合 Agent 系统运维要求。
+3. **AgBOM 的价值**：就像传统软件依赖 SBOM 一样，Agent 需要 AgBOM 实时记录其在毫秒级别调用的工具、模型和数据源。
+
+---
+
+## 7. 检验题 (Quiz)
+
+1. **单选题**：关于 Vibe Diff 机制，以下哪项描述最符合其设计目的？
+* A. 比较两个不同大模型的 Token 消耗速度
+* B. 将 Agent 生成的复杂代码自动翻译为 Plain-English 摘要，帮助开发者明确高危操作影响
+* C. 自动加密 Agent 与数据库之间的网络通讯
+* D. 统计 Agent 编写代码中的 Lint 错误数
+
+
+2. **简答题**：请说明为什么在 Agentic 架构中，Green Team 采用“Stateful Quarantine（有状态隔离）”优于直接终止 Agent 容器进程？
+
+---
+
+## 8. 延伸学习 (Extended Topics)
+
+* **深入学习方向**：
+* **Model Context Protocol (MCP)** 架构规范及其安全拓展协议。
+* **OpenTelemetry for AI Agents**：基于 Agent 痕迹 Trace 和 span 搭建跨工具调用的可观测系统。
+
+
+
+---
+
+## 9. 补充：日本工作常用表达 & 数据分析应用场景
+
+### 日本 IT / AI 现场常用表达 (ビジネス・現場用語)
+
+在日企讨论 Agent 安全防护与自动重构时的专业表达：
+
+* **サプライチェーン攻撃（せいきゅう攻撃）**：供应链攻击（Slopsquatting 归属此类）。
+* **承認疲れ（しょうにんつかれ）**：确认疲劳 / 审批疲劳（Confirmation Fatigue）。
+* **ジャストインタイム（JIT）権限降格（けんげんこうかく）**：JIT Token Downscoping（最小权限降权）。
+* **ステートフル隔離（かくり）**：Stateful Quarantine（保留状态的隔离）。
+* **自動リファクタリング（じどうリファクタリング）**：Auto-Refactoring（Green Team 代码自动重构）。
+
+### 数据分析中的应用场景
+
+在数据分析流水线（Data Pipeline）中，这些安全技术可应用为：
+
+1. **Data Pipeline Circuit Breaker（数据流水线熔断器）**
+* **场景**：当 Data Analysis Agent 循环尝试修复 SQL 语法错误超过 5 次时，触发检查点断路器（Circuit Breaker），挂起 Agent 状态并通知数据运维人员，防止产生巨额 Token 或 Data Warehouse 计费。
+
+
+2. **AgBOM for Data Lineage（数据血缘与工具清单监控）**
+* **场景**：Blue Team Agent 实时记录分析 Agent 在生成 BI 报表时调用的 BigQuery Table、Python 库和可视化工具，形成完整的动态数据血缘图谱与安全审计日志。
+
+接下来为您整理 **第 27 - 41 页（Evaluation 评估体系、意图对齐、可观测性与全书总结篇）** 的详细拆解：
+
+---
+
+## 1. 内容概述 (27-41 页)
+
+这部分内容完成了从“Security（安全边界）”到“Evaluation（质量与意图评估）”的范式转移：
+
+* **27-30 页**：**为什么 Vibe Coding 评估完全不同 (Evaluation Architecture)**。传统软件靠确定性测试（Pass/Fail），而 Agent 评估属于“开箱/玻璃盒（Glass Box）”机制。需要从三维评估：**Trajectory Alignment**（推理轨迹对齐，是否走弯路）、**Code Quality & Security**（生成代码的质量与安全性）、**Cost/Latency Efficiency**（Token 消耗与时延效率）。
+* **31-34 页**：**如何科学评估 (How to Evaluate)**。引入 LLM-as-a-Judge 与基于 Trace 的确定性断言组合；提出了 **Intent Drift**（意图漂移）和 **Trust Decay**（信任衰减）指标，测量 Agent 是否在多轮对话中偏离了最初需求。
+* **35-39 页**：**可观测性与落地实用技巧 (Observability & Applied Tips)**。基于 OpenTelemetry 记录每一步 Reasoning Trace；提出 **Small Batch Sizes（小批次迭代）**、**Checkpoints & Circuit Breakers（死循环断路器）**，防止 Agent 陷入无休止的自我纠错循环而暴涨 Token 账单。
+* **40-41 页**：**全书总结与结论 (Conclusion)**。总结 2026 年企业级 Agent 部署的核心金科玉律：**Security 界定边界，Evaluation 决定产出品质**。
+
+---
+
+## 2. 核心知识点解释
+
+1. **Vibe Trajectory & Intent Drift（推理轨迹与意图漂移）**
+* **概念**：Agent 完成任务不是一蹴而就的，而是一条由“思考-工具调用-代码编写-报错重试”构成的轨迹（Trajectory）。
+* **风险**：在多轮迭代中，Agent 可能为了解决某个局部报错而不断修改代码，最终偏离了开发者最初提出的业务需求（Intent Drift）。
+* **解法**：通过可观测性日志实时扫描轨迹，测量当前行为与原始提示（Prompt）的语义相关度，一旦发生偏移及时打断。
+
+
+2. **Stateful Circuit Breakers（有状态断路器）**
+* **概念**：当 Agent 编写的代码无法运行，它会自动读取 Error Log 并尝试修复。但如果报错无法解决，Agent 会陷入“修改-报错-再修改”的无限死循环。
+* **机制**：设置有状态的断路器（Circuit Breaker），设定重试次数上限（如 3 次）或 Token 消耗阈值。一旦触顶，强制挂起（Suspend）Agent 状态，要求开发者干预。
+
+
+3. **LLM-as-a-Judge 与 Deterministic Assertion 结合**
+* **概念**：评价 AI 生成的代码不能仅靠传统的单元测试，也不能完全依赖大模型判官（LLM-as-a-Judge）。
+* **机制**：混合评估模式——用确定性断言（AST 语法树解析、静态分析 SAST、单元测试）保障“硬指标”；用 LLM-as-a-Judge 评估“软指标”（如代码可读性、架构是否符合项目 Style Guide）。
+
+
+
+---
+
+## 3. 专业术语表 (Glossary)
+
+| 术语 (Term) | 全称 / 解释 | 应用场景/意义 |
+| --- | --- | --- |
+| **Vibe Trajectory** | 意图执行轨迹 | 记录 Agent 在完成任务过程中所有思考、工具调用与代码改动的完整日志链。 |
+| **Intent Drift** | 意图漂移 | 智能体在解决报错或多轮对话中逐渐偏离用户原始意图的现象。 |
+| **Trust Decay** | 信任衰减 | 随着 Agent 执行步数变多或出错率上升，系统/开发者对其降低信任度的量化指标。 |
+| **Circuit Breakers** | 熔断机制 / 断路器 | 当 Agent 陷入死循环、过度消耗 Token 或频繁报错时自动打断执行的保护机制。 |
+| **LLM-as-a-Judge** | LLM 裁判评估 | 利用高阶大模型对 Agent 生成的代码和推理过程进行定性评分。 |
+
+---
+
+## 4. 技术关系图 (Evaluation & Alignment Architecture)
+
+```text
++--------------------------------------------------------------------+
+|                   User Expresses Intent (Prompt)                   |
++--------------------------------------------------------------------+
+                                   |
+                                   v
++--------------------------------------------------------------------+
+|                   Agent Execution Loop (Trajectory)                |
+|  [Reasoning] ---> [Call MCP/Tools] ---> [Write/Execute Code]       |
++--------------------------------------------------------------------+
+       |                                                    |
+ [Trace & Logs]                                    [Error / Retry]
+       |                                                    |
+       v                                                    v
++-------------------------------+          +-------------------------------+
+|  OpenTelemetry Observability  |          |   Stateful Circuit Breaker    |
+|  - Real-time Trajectory Trace |          |   - Max retries exceeded?     |
+|  - Content Scanning           |          |   - Suspend & Notify Developer|
++-------------------------------+          +-------------------------------+
+       |
+       v
++--------------------------------------------------------------------+
+|                     Hybrid Evaluation Engine                       |
+|  - Deterministic Checks: SAST, AST, Unit Tests                     |
+|  - LLM-as-a-Judge: Intent Drift, Code Readability, Style Guide     |
++--------------------------------------------------------------------+
+
+```
+
+---
+
+## 5. 面试重点 (Interview Focus)
+
+* **面试题 1**：评估一个 Vibe Coding / Code Agent 时，应该看哪些核心维度？
+* *回答要点*：不能只看“代码能否编译成功”。应从三个维度评估：
+1. **结果质量与安全性**：SAST 扫描无漏洞、通过单元测试、符合编码规范；
+2. **推理对齐度（Trajectory & Intent Drift）**：执行路径是否最简，有无偏离用户原始需求；
+3. **资源效率**：消耗的 Token 数、API 调用次数及执行时延。
+
+
+
+
+* **面试题 2**：如何防止 Code Agent 在自动修复报错时陷入无限循环并浪费 API 费用？
+* *回答要点*：引入“Stateful Circuit Breaker（有状态断路器）”和“Small Batch Sizes（小批次提交）”机制。通过记录 Agent 的重试次数和消耗的 Token 额度，达到阈值时挂起 Agent 状态并向开发者推播提示，要求人介入引导。
+
+
+
+---
+
+## 6. 学习笔记
+
+1. **从 Black-Box 到 Glass-Box**：传统的软件测试是黑盒测试（看输出）；而 Agent 评估必须是“玻璃盒测试”，透视其 Reasoning Steps（推理步骤）和轨迹，才能找出是哪个工具调用引发了偏差。
+2. **小步快跑（Small Batch Sizes）**：给 Agent 一次性下达过大的任务（如“重构整个项目”）极易导致严重的 Intent Drift，最佳实践是将大任务拆解为小 Step 逐个验证。
+3. **安全与质量的合力**：安全（Security）确保 Agent 动作不越界；评估（Evaluation）确保界内产出符合预期，二者共同构成 2026 企业级 AI 运维脚手架（Harness）。
+
+---
+
+## 7. 检验题 (Quiz)
+
+1. **单选题**：在 Agentic 评估体系中，“Intent Drift（意图漂移）”最准确的定义是什么？
+* A. Agent 运行速度随着时间推移越来越慢
+* B. Agent 在自我纠错或多轮交互中，生成的代码逐渐偏离了开发者最初的需求
+* C. 大模型因服务器超载而拒绝响应
+* D. 开发者忘记保存 IDE 中的代码文件
+
+
+2. **简答题**：请结合本报告观点，简述在评估 Agent 生成的代码时，为什么要采用“确定性检查（Deterministic Checks）”与“LLM-as-a-Judge”相结合的混合评估方式？
+
+---
+
+## 8. 延伸学习 (Extended Topics)
+
+* **深入学习方向**：
+* **Evaluation Benchmarks (如 SWE-bench)**：学习业界如何量化评估 AI Agent 在真实 GitHub Issue 上的解决能力。
+* **LangSmith / Phoenix OpenInference**：掌握 Agent 推理轨迹 Trace 的抓取与标注可视化实战。
+
+
+
+---
+
+## 9. 补充：日本工作常用表达 & 数据分析应用场景
+
+### 日本 IT / AI 現場常用表达 (ビジネス・現場用語)
+
+在日企讨论 Agent 质量评估与可观测性时的专业表达：
+
+* **意図（いと）のブレ / インテント・ドリフト**：意图漂移（Intent Drift）。
+* **トレース / 思考プロセス（しこうプロセス）**：推理轨迹（Reasoning Trace / Trajectory）。
+* **サーキットブレーカー（中断機構）**：熔断机制（Circuit Breaker）。
+* **小規模バッチ（しょうきぼバッチ）**：小批次迭代（Small Batch Sizes）。
+* **LLMによる評価（LLM-as-a-Judge）**：大模型裁判评估。
+
+### 数据分析中的应用场景
+
+在数据分析（Data Analytics）与 AI 运维中，评价体系可直接落地为：
+
+1. **SQL Agent Trajectory Evaluation（SQL 智能体轨迹评估）**
+* **场景**：数据分析 Agent 编写复杂的 多表 Join SQL 时，评估系统不仅校验结果数据是否正确（Deterministic），还会评估其 Trace 中是否有无意义的多余查询（Trajectory Efficiency），以降低 Data Warehouse 资源开销。
+
+
+2. **Automated Data Quality Circuit Breaker（数据质量熔断器）**
+* **场景**：当 Agent 自动生成 ETL 脚本提取数据时，若连续 3 次校验发现数据空值率超标，断路器自动触发并暂停 Pipeline，防止脏数据污染下游 Data Mart。
+
