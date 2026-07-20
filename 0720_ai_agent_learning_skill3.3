@@ -1,0 +1,551 @@
+# DAY 3 AI Agents: Skills管理与架构设计 - 完整分析
+
+## 📺 视频基本信息
+- **课程**: 5-Days of AI Agents: Intensive Vibe Coding Course with Google
+- **讲者**: Smitha Kolan (Google Cloud), Anant Nalgaria (Founder), Gabriella, Julia, Debanchu, Tanvi
+- **时长**: 57分钟29秒
+- **主题**: Agent Skills - 从知识管理到架构设计
+- **观看**: 29,999次
+
+---
+
+## ✅ 第一框架：总结 Summary
+
+**本堂课核心内容**:
+
+DAY 3解决的是"Agent规模化时如何管理知识而不导致性能崩溃"的问题。核心创新是**Agent Skills**——一种轻量级、可移植的知识封装格式,通过渐进式披露(Progressive Disclosure)机制避免Context Rot。
+
+**四大关键议题**:
+
+1. **Agent Skills架构** - 简单的文件夹+skill.md+可选脚本,实现知识的模块化和复用
+2. **安全与验证** - 在Skill Registry中防止恶意代码注入,跨模型验证
+3. **系统设计决策** - 何时使用单Agent+多Skills vs 多Agent架构
+4. **状态管理** - 通过DAG编排和消息总线防止Context Rot和跨节点状态污染
+
+课程强调"Ask WHY" - 不是简单地技术选择,而是理解架构决策背后的业务逻辑。
+
+---
+
+## 📑 第二框架：知识点解释 Concept Explanations
+
+### **1. Context Rot (上下文腐烂)**
+- **问题**: 向系统提示中不断添加指令、例子、工具,最初有效但逐渐失效
+- **表现**: Agent选择错误工具、忘记早期指令、开始hallucinating
+- **原因**: LLM关注力衰减(Attention Degradation),buried instructions被忽视
+- **解决**: Progressive Disclosure + Hierarchical Routing
+
+### **2. Progressive Disclosure (渐进式披露)**
+- **核心机制**: Agent启动时仅看到每个Skill的轻量元数据(~50 tokens),完整指令仅在任务匹配时加载
+- **效果**: 50-100个Skills安装,Context仍然精简
+- **技术**: 动态加载,不锁定特定厂商,跨多个IDE兼容(Antigravity、ADK、Cloud Code等)
+- **优势**: 快速传播,不受供应商限制
+
+### **3. Agent Skills (Agent技能)**
+一个自包含的文件夹结构:
+```
+my-skill/
+├── skill.md          (必需)
+│   ├── Front Matter (名字、描述、访问权限)
+│   └── 执行指令
+├── scripts/          (可选,Python、Shell等)
+├── references/       (可选,参考文档、SOP)
+└── assets/          (可选,数据文件)
+```
+
+**与工具的区别**:
+- **Tool** = 单一动作(单个动词) - 调用API、发送消息
+- **MCP** = 到外部系统的连接 - 认证、数据访问、连接逻辑
+- **Skill** = 知识和流程 - 条件逻辑、步骤顺序、域知识、政策
+
+### **4. Skill Registry与信任等级**
+受HELM启发的分层信任:
+- **Built-in** (内置) - Agent自带,信任度最高
+- **Official** (官方) - 项目官方目录,高信任度
+- **Trusted** (受信) - Google等发布者,信任度高
+- **Community** (社区) - 需要扫描、检查,可被限制
+
+**新型验证机制** (Nvidia Verified Agent Skills模式):
+1. **Skill Inspector** - 检查代码漏洞、提示注入、密钥
+2. **Cryptographic Signing** - 跟踪Skill更新历史
+3. **Skill Card** - 机器可读文件(作者、访问权限、限制)
+
+### **5. Context Window不是数据库 (Context Window is Not a Database)**
+- **错误模式**: 将所有状态堆积到LLM上下文中
+- **正确模式**: 
+  - 状态存在文件总线(File Bus)
+  - 只传递指针(Pointers),不传递数据
+  - 执行历史不在会话中积累
+
+**例子**: 
+- ❌ 错误: Node1完整输出 → Node2作为提示 → Node4时模型重读所有上游内容→Context Rot
+- ✅ 正确: Graph Controller持有状态 → 节点间通过schema references传递 → 模型仅处理推理逻辑
+
+### **6. Skill vs Multi-Agent决策树**
+**何时单Agent+多Skills**:
+- ✅ 有100个SOP(标准操作程序),逻辑清晰
+- ✅ Agent能清楚判断何时用哪个SOP
+- ✅ 简化部署、扩展(新SOP = 新文件,不是新Agent)
+- ✅ 不需要并行化或Agent间通信
+
+**何时多Agent**:
+- ✅ 需要并行处理
+- ✅ Agent间有复杂通信
+- ✅ 不同Agent有不同的"角色分工"(如Reviewer vs Executor)
+- ⚠️ 每个新Sub-Agent都需新部署
+
+**关键判断**: 1) Token压力, 2) 工具数量, 3) 选择准确性, 4) 延迟要求
+
+### **7. State Management with DAG Orchestration (DAG编排的状态管理)**
+三步骤解决Context Rot:
+
+1. **Decouple State** - 状态从提示移到文件总线
+2. **Pass Pointers, Not Data** - 传递schema references而非JSON payload
+3. **Protect Model Attention** - 重数据存储在磁盘外,模型仅处理推理
+
+**好处**: 可调试性、可观测性、高性能
+
+### **8. Skill Versioning与Hallucination防护**
+- **问题**: Agent的长期对话记忆与已更新的Skill版本冲突
+- **反模式**: 在同一提示窗口中调和过去记忆和新Skill
+- **解决**:
+  - 分离Memory(剧集式What happened) 和 Skill(程序式How we do it now)
+  - DAG编排执行硬重置(Hard Reset) - 卸载旧指令,加载新Skill版本
+  - Fail Loud - Agent明确告知用户版本不匹配,提供选项
+
+---
+
+## 📋 第三框架：术语表 Terminology Table
+
+| 英文术语 | 日本語 | 中文翻译 | 解释 |
+|---------|--------|---------|------|
+| **Agent Skills** | エージェントスキル | Agent技能/Agent技巧 | 自包含的文件夹结构,包含skill.md和可选脚本 |
+| **Progressive Disclosure** | 漸進的開示 | 渐进式披露 | 启动时仅加载轻量元数据,需要时才加载完整指令 |
+| **Context Rot** | コンテキスト腐敗 | 上下文腐烂 | 过多静态指令导致LLM性能衰减的现象 |
+| **skill.md** | スキルマークダウン | 技能描述文件 | 标准格式,包含front matter和执行指令 |
+| **Skill Registry** | スキルレジストリ | 技能注册表 | 公共技能的集中管理,含信任等级 |
+| **Skill Card** | スキルカード | 技能卡 | 机器可读的元数据,说明作者、权限、限制 |
+| **Trust Tier** | 信頼レベル | 信任等级 | Built-in/Official/Trusted/Community四个等级 |
+| **Slop Squatting** | スロップスクワッティング | 垃圾挤占 | 攻击者预注册AI会hallucinate的包名 |
+| **Skill Inspector** | スキル検査官 | 技能检查器 | 扫描技能中的代码漏洞和安全问题 |
+| **Portability** | 可搬性 | 可移植性 | Skill可在不同IDE和模型间运行 |
+| **Behavioral Difference** | 動作の違い | 行为差异 | 同一Skill在不同模型上的表现差异 |
+| **MCP** | マネージドコンテンツプロバイダー | 模型上下文协议 | 到外部系统的连接/接口 |
+| **Tool** | ツール | 工具 | 单一动作的能力,通常是API调用 |
+| **Skill Library** | スキルライブラリ | 技能库 | 一组相关的Skills的集合 |
+| **Routing** | ルーティング | 路由 | 决定哪个Agent/Skill处理特定任务的机制 |
+| **Hierarchical Routing** | 階層的ルーティング | 分层路由 | 多级路由,先Router选择顶级类别,再选具体Skill |
+| **Context Window** | コンテキストウィンドウ | 上下文窗口 | LLM能处理的最大token数量 |
+| **File Bus** | ファイルバス | 文件总线 | 节点间传递状态的消息传输机制 |
+| **DAG Orchestration** | DAG編成 | DAG编排 | 有向无环图,用于多步骤工作流的编排 |
+| **Capability Profile** | 能力プロファイル | 能力配置 | 定义特定节点或步骤可用的Skills和工具 |
+| **Meta Skills** | メタスキル | 元技能 | Agent通过观察成功执行追踪自动生成/优化的Skills |
+| **System Prompt Bloat** | システムプロンプト肥満 | 系统提示臃肿 | 过多指令堆积在系统提示中 |
+| **Evaluation Metrics** | 評価メトリクス | 评估指标 | 衡量Skill有效性的量化方式 |
+| **Pass at K** | K通過 | K-Pass | 在K次试验中至少成功一次的比率 |
+| **Fail Loud** | 大声で失敗 | 大声失败 | 系统明确告知用户错误而非隐默失败 |
+| **Decoupling** | 疎結合 | 解耦/分离 | 状态、指令、数据的独立管理 |
+| **Spot Checking** | スポットチェック | 抽查 | 随机检查一些样本验证质量 |
+| **Red Teaming** | レッドチーミング | 红队测试 | 对抗性测试,尝试破坏系统 |
+
+---
+
+## 🔗 第四框架：技术关系图 Technical Relationship Map
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│         AGENT SKILLS: FROM CONTEXT ROT TO SCALABLE SYSTEMS    │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│              THE PROBLEM: CONTEXT ROT                          │
+├────────────────────────────────────────────────────────────────┤
+│ ❌ 不断添加指令→系统提示臃肿→LLM性能衰减                          │
+│ ❌ Agent选错工具、忘记早期指令、hallucinate                      │
+│ ❌ 无法扩展到50+个技能                                          │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│          SOLUTION: PROGRESSIVE DISCLOSURE (渐进式披露)          │
+├────────────────────────────────────────────────────────────────┤
+│ Startup: 轻量元数据 (~50 tokens/skill)                        │
+│   ↓                                                           │
+│ On Demand: 完整指令仅在任务匹配时加载                           │
+│   ↓                                                           │
+│ Result: 100+个Skills, Context仍然精简                        │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│            AGENT SKILLS FILE STRUCTURE (Agent技能文件结构)      │
+├────────────────────────────────────────────────────────────────┤
+│ my-skill/                                                     │
+│   ├── skill.md (必需) ┬─ Front Matter (名称、描述、访问)       │
+│   │                   └─ 执行指令 (Steps、Conditions)        │
+│   ├── scripts/        (可选) ─ Python/Shell脚本              │
+│   ├── references/     (可选) ─ 文档、SOP、案例               │
+│   └── assets/         (可选) ─ 数据文件、配置                │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│    SKILL REGISTRY: TRUST TIERS & VERIFICATION (信任等级和验证)    │
+├────────────────────────────────────────────────────────────────┤
+│ Built-in Skills ─────────── Agent自带,信任度最高              │
+│ Official Skills ────────── 项目官方,高信任度                 │
+│ Trusted Publishers ──────── Google等发布者,可信               │
+│ Community Skills (需扫描) ─ Skill Inspector验证               │
+│          ├─ 代码漏洞扫描 (Vulnerability Scan)                │
+│          ├─ 提示注入检查 (Prompt Injection Check)            │
+│          ├─ 密钥检测 (Secret Detection)                     │
+│          └─ 签名验证 (Cryptographic Signing)                │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│  TOOL vs MCP vs SKILL: 清晰的关注点分离 (Clear Separation)      │
+├────────────────────────────────────────────────────────────────┤
+│ TOOL:  What is the single action?     (动词) send_message    │
+│        ├─ Stable contract,能做什么                            │
+│        └─ 单个动词的能力                                       │
+│                                                              │
+│ MCP:   What can I reach?              (连接) database API    │
+│        ├─ 连接逻辑、认证、数据访问                            │
+│        └─ 到外部系统的"管道"                                   │
+│                                                              │
+│ SKILL: How do I go about doing it?    (流程) data_analysis   │
+│        ├─ 条件逻辑、步骤顺序、域知识                          │
+│        └─ "知道什么时候用哪个Tool,用多少MCP"                   │
+│                                                              │
+│ 🔑 Test: 删除Skill指令后,模型仍能执行(虽然笨拙)=边界清晰      │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│   ARCHITECTURE DECISION: Single Agent + Skills vs Multi-Agent   │
+├────────────────────────────────────────────────────────────────┤
+│ 单Agent+多Skills:                  多Agent:                   │
+│ ✅ 简单部署                         ✅ 需要并行化              │
+│ ✅ 易扩展(新SOP=新文件)            ✅ Agent间有复杂通信       │
+│ ✅ 无部署开销                       ✅ 不同"角色分工"         │
+│ ✅ 易调试                           ❌ 每个Agent=新部署        │
+│ ❌ 大量Skills时选择准确性↓          ❌ 握手开销+延迟         │
+│                                     ❌ 难追踪故障            │
+│                                                              │
+│ 决策因素:                                                     │
+│   • Context Window压力               • 工具数量(>50危险)      │
+│   • 选择准确性 (15-20准, 50↓)      • 延迟要求 (实时vs异步)  │
+│   • 能否清晰定义"何时用哪个Skill"                             │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│  STATE MANAGEMENT: DAG ORCHESTRATION与Context Window保护        │
+├────────────────────────────────────────────────────────────────┤
+│ ❌ 错误模式:                                                   │
+│    Node1输出 → Node2提示 → Node3提示 → ... → Node4时Context爆  │
+│                                                              │
+│ ✅ 正确模式(3步):                                             │
+│    ┌─────────────────────────────┐                          │
+│    │  1. Decouple State          │ 状态→文件总线(File Bus)   │
+│    │  2. Pass Pointers Not Data  │ 传递ref而非全JSON payload│
+│    │  3. Protect Attention       │ 重数据外存,轻逻辑内存      │
+│    └─────────────────────────────┘                          │
+│            ↓                                                 │
+│    Graph Controller持有状态                                  │
+│            ↓                                                 │
+│    每个Node获得:                                              │
+│    • Capability Profile (该步骤可用的Skills)               │
+│    • Schema References (指向外部数据的指针)                 │
+│    • 执行历史: 不积累在提示中                                 │
+│            ↓                                                 │
+│    Benefits: 可调试 + 可检查 + 高性能                       │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│  ROUTING: 从平面到分层 (From Flat to Hierarchical)           │
+├────────────────────────────────────────────────────────────────┤
+│ ❌ 平面路由(100+Skills):                                      │
+│    所有Skills元数据都暴露 → Distractors增多 → 选择准确性↓      │
+│                                                              │
+│ ✅ 分层路由:                                                 │
+│    User Request                                             │
+│         ↓                                                   │
+│    Top-level Router                                        │
+│    (选择宽泛类别)                                            │
+│         ↓                                                   │
+│    Capability Profiling                                    │
+│    (缩小到10-15个Skills)                                   │
+│         ↓                                                   │
+│    Model只见Filtered List                                  │
+│    (Context仍然有界)                                        │
+│                                                              │
+│ 核心问题: 重叠问题,不是大小问题                               │
+│ 解决: 功能化路由 > 语义检索(容易漏召回)                      │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│  SKILL VERSIONING & LONG-TERM MEMORY (版本管理和长期记忆)      │
+├────────────────────────────────────────────────────────────────┤
+│ ❌ 反模式: 在同一提示中调和旧记忆+新Skill Version             │
+│    → 必然触发Context Rot和hallucination                      │
+│                                                              │
+│ ✅ 解决方案:                                                 │
+│    分离 Memory(剧集式)和 Skill(程序式)                       │
+│         ↓                                                   │
+│    Memory: What happened  (历史事实)                       │
+│    Skill:  How we do it now  (当前规则,v2已更新)            │
+│         ↓                                                   │
+│    DAG执行 Hard Reset:                                     │
+│    • 卸载旧Skill版本指令                                    │
+│    • 加载新Capability Profile                              │
+│    • 清空旧状态变量                                          │
+│         ↓                                                   │
+│    Fail Loud:                                              │
+│    "我发现Memory来自v1,但现在运行v2.有何不同?"               │
+│    Agent主动告知用户,提供选项                               │
+│         ↓                                                   │
+│    Skills = 源码真值(Source of Truth)                      │
+│    Memory = 提示,不是指令                                    │
+└────────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────────┐
+│   META SKILLS: Agent自动生成和优化Skills (前沿研究)           │
+├────────────────────────────────────────────────────────────────┤
+│ 未来: Agent通过观察成功执行追踪 → 自动编写新Skills            │
+│ 注意: 必须从草稿开始 → 人工审查 → 优化指标验证               │
+│ 风险: Agent可能误优化指标,破坏库质量                          │
+│ 解决: 人工Spot Checking + 库级评估                            │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 💼 第五框架：对数据分析行业的影响 Industry Impact Analysis
+
+### **1. 数据分析工作流的模块化转变**
+
+**传统方式 (Before Skills)**:
+- 数据分析师手写SQL/Python脚本
+- 每次分析都从头开始,大量重复代码
+- 知识分散在个人笔记和代码库中
+
+**Agent Skills方式 (After)**:
+- 创建可复用的Skill库: "数据清洗", "异常检测", "报表生成"
+- Agent自动选择和编排合适的Skill
+- 新分析师快速学习(通过阅读skill.md而非复杂代码)
+- **行业影响**: 数据分析生产率提升30-50%
+
+**实例**:
+```
+Data Analysis Request
+     ↓
+Agent选择:
+  1. data_cleaning_skill (来自库)
+  2. feature_engineering_skill (复用)
+  3. anomaly_detection_skill (库中最新版本)
+  4. visualization_skill (标准化)
+     ↓
+无需重写任何代码,5分钟完成
+```
+
+### **2. 知识管理与合规**
+
+**Skill的文档价值**:
+- **skill.md** = 可执行的SOP(标准操作程序)
+- 非技术审查者可通过阅读理解"这个分析做了什么"
+- **行业合规**: 金融/医疗需要可审计的分析步骤
+
+**数据治理应用**:
+- 数据访问控制: Skill中定义"谁能调用此Skill"
+- 数据血系追踪: Skill.md记录数据源和转换
+- 版本历史: Skill Card中cryptographic signing,审计追踪
+- **日本金融机构应用**: 满足金融庁(FSA)审查要求
+
+### **3. 安全与Risk Management**
+
+**Slop Squatting风险**:
+- 攻击者创建假的"数据分析库" → Agent自动install → 数据泄露
+- **防御**: Skill Registry的信任等级 + Skill Inspector自动扫描
+
+**权限隔离**:
+- Skill定义访问权限("此Skill仅访问客户A的数据")
+- 数据分析Agent不能越权访问其他部门数据
+- **行业需求**: 大型企业的数据湖隔离
+
+### **4. 成本优化与资源管理**
+
+**从成本角度**:
+- ❌ 多Agent架构: 每个Agent都要部署、监控、维护
+- ✅ 单Agent+多Skills: 仅维护一个Agent,新Skill添加无部署成本
+
+**Token效率**:
+- Progressive Disclosure: 100个数据分析Skill,仅消耗~5000 tokens元数据
+- vs 全部加载: 可能100k+ tokens → 更贵的LLM调用
+- **节省**: 相同功能下50-70%的token减少
+
+### **5. 跨部门协作与知识复用**
+
+**场景**: 大型银行的多部门分析
+
+| 部门 | Skills库 | 复用 |
+|------|---------|------|
+| 风控部 | credit_risk_skill, default_prediction_skill | 20% 来自通用库 |
+| 交易部 | market_analysis_skill, liquidity_risk_skill | 40% 来自通用库 |
+| 运营部 | cost_analysis_skill, efficiency_metrics_skill | 30% 来自通用库 |
+
+**好处**: 数据定义统一,跨部门一致性提升
+
+### **6. 评估和质量控制**
+
+**Skill质量指标**:
+- **Pass at K**: Skill在K次运行中至少成功一次的比率(e.g., Pass@5)
+- **vs简单成功率**: 简单率只看最终结果,不看稳定性
+- **应用**: 生产环仅允许Pass@3的Skills
+
+**数据分析场景**:
+- Skill: "异常检测"必须在100次运行中至少98次准确
+- 版本升级: v2必须通过Full Red Teaming(对抗性测试)才能部署
+- 人工Spot Checking: 随机检查10个结果确保没有hidden bugs
+
+---
+
+## 🎯 第六框架：面试重点 Interview Focus
+
+### **技术深度面试**
+
+**Q1: 解释Progressive Disclosure如何解决Context Rot**
+- 核心答案: 不是全部加载,而是按需加载
+- 展示: 元数据在启动时加载(~50 tokens),完整指令仅在任务匹配时获取
+- 量化: 100个Skills = 5k tokens vs 100k+ tokens的传统方式
+- 陷阱: 不是简单的"缓存",而是架构级的设计决策
+
+**Q2: Skill、Tool、MCP的边界在哪里?**
+- 标准答案: 
+  - Tool = 单个动作(What is the single action?)
+  - MCP = 连接到外部系统(What can I reach?)
+  - Skill = 知识和流程(How do I go about doing it?)
+- 验证方法: 删除Skill指令后,模型是否仍能执行该动作(虽然笨拙)
+- 常见错误: 把Skill当Tool使用,或反之
+
+**Q3: 何时选择单Agent+多Skills vs多Agent?**
+- 快速答案: 默认选单Agent+多Skills,仅在遇到specific problem时分裂
+- 决策因素: 
+  1. Token压力(Context Window大小)
+  2. 工具数量(15-20准, 50↓精度)
+  3. 能否清晰定义"何时用哪个Skill"
+  4. 延迟要求(实时vs异步)
+- 反例: "为100个SOP创建100个Agent" = 部署灾难
+
+**Q4: 如何防止Skill Registry中的恶意代码?**
+- 防御层:
+  1. Skill Inspector(代码漏洞、提示注入、密钥扫描)
+  2. Cryptographic Signing(追踪更新历史)
+  3. Skill Card(作者、权限、限制的机器可读元数据)
+  4. 信任等级分类(Built-in > Official > Trusted > Community)
+- 关键: 安全不仅依赖模型,还要硬约束(权限、沙箱)
+
+**Q5: 状态管理中为什么要用File Bus而不是Prompt?**
+- 问题诊断: 多Node工作流中,每个Node把完整输出作为下个Node的提示→Context爆炸
+- 解决:
+  1. Decouple State: 状态存在文件,不在提示中
+  2. Pass Pointers: 传递schema references而非数据
+  3. Protect Attention: 让模型专注推理,不读重数据
+- 例子: 4-hop workflow从"Node4时Context失控"变为"稳定可扩展"
+
+**Q6: Skill版本更新如何避免Hallucination?**
+- 反模式: 在提示中调和旧记忆(v1)和新Skill(v2)→必然失败
+- 正确做法:
+  - 分离Memory(剧集式What happened)和Skill(程序式How we do it now)
+  - DAG执行Hard Reset: 卸载旧指令,加载新Profile
+  - Fail Loud: Agent主动告知版本不匹配,提供选项
+- 关键洞察: Agent不是在hallucinate,而是忠实地执行过时程序
+
+### **系统设计面试**
+
+**S1: 设计一个Skill库的架构**
+- 要点:
+  1. Flat vs Hierarchical: 何时需要分层路由
+  2. Trust Tier系统: 如何渐进信任新发布者
+  3. Evaluation: Pass@K, Red Teaming, 人工审查的权重
+  4. Versioning: 向后兼容性vs安全更新
+- 日本公司特色: 重过程,需详细的SOP(Skill.md就是SOP)
+
+**S2: 如何从单Skill优化升级到库级优化?**
+- 认知转变: 不仅优化单个Skill,更要优化整个库
+- 问题: 两个Skills做类似的事,模型困惑(Distractors)
+- 解决:
+  1. 库级评估(多Skill的联合表现)
+  2. 消除重叠(合并或专化Skill)
+  3. 层级化(通用Skill + 特化Skill)
+- 反例: "逐个Skill优化而忽视库级一致性"
+
+### **行为面试**
+
+**B1: 描述一个需要决策Tool vs Skill的项目**
+- 考察: 能否区分"连接"和"知识"
+- 展示: 开始时做错(如把Skill当Tool),发现问题后重构
+- 学习: 为什么边界清晰很重要(易于维护、复用)
+
+**B2: 如何处理跨团队对"应该是Skill还是Sub-Agent"的争议**
+- 考察: 能否进行系统思考,而非武断决定
+- 展示: 问对问题("需要并行化吗?""Agent间需通信吗?")而非宣布答案
+- 学习: Gabriella强调"Ask WHY" - 理解架构决策背后的business logic
+
+---
+
+## 📚 第七框架：学习笔记 Study Notes
+
+### **关键时间戳**
+
+| 时间 | 内容 | 关键概念 |
+|------|------|----------|
+| 0:00-1:45 | 开场 + Day 3概览 | Context Rot问题引入 |
+| 1:45-3:32 | Agent Skills定义 | Progressive Disclosure概念 |
+| 3:32-6:26 | 白皮书详细讲解 | 七个支柱讨论 |
+| 6:26-13:12 | Q&A第1部分 | Skill Security & Verification |
+| 13:12-26:16 | Q&A第2部分 | Tool/MCP/Skill边界 & 状态管理 |
+| 26:16-38:39 | Q&A第3部分 | 单Agent vs 多Agent决策 & Skill版本 |
+| 38:39-44:53 | Code Labs讲解 | 两个Code Labs演示 |
+| 44:53-56:25 | Pop Quiz | 5道题目检验理解 |
+| 56:25-57:29 | 总结 & 预告Day 4 | Security & Evaluation |
+
+### **关键公式和度量**
+
+**Context Rot风险评分**:
+```
+Context Risk = (Num of Skills × Avg Metadata Size) / Context Window
+             × (Overlap Ratio) × (Selector Accuracy Degradation)
+
+例: 100 Skills × 50 tokens × 1.2倍重叠 × 0.8准确性 = 高风险
+```
+
+**Skill质量指标**:
+```
+Pass@K = (成功次数 ≥ 1) / K
+
+Pass@1 = 100% (最严格,每次都要对)
+Pass@3 = 99% (3次试验中至少1次对)
+Pass@10 = 95% (允许失败,但不能总失败)
+```
+
+**Skills库规模的临界值**:
+- **0-20 Skills**: 全部加载,平面路由 ✅
+- **20-50 Skills**: 考虑渐进披露,开始有重叠问题 ⚠️
+- **50+ Skills**: 必须分层路由,需Skill Inspector ❌
+
+**Multi-Agent的成本**:
+```
+Multi-Agent Cost = Deployment Cost + Handoff Latency + Failure Tracing Difficulty
+                 = 高 + 中 + 高
+
+vs
+
+Single Agent + Skills Cost = Deployment Cost + Routing Logic + Evaluation
+                           = 低 + 中 + 中 (更优)
+```
+
+### **核心论点总结**
+
+| 议题 | 观点 | 根据 |
+|------|------|------|
+| **Skill的本质** | 知识封装,不是代码生成 | Julia: "删除Skill指令后仍能执行=边界清晰" |
+| **Context Rot根源** | 重叠的Distractors,不仅仅是大小 | Debanchu: "100个Skill只要5k tokens,问题是相似度" |
+| **路由策略** | Hierarchical > Semantic Retrieval | 避免漏召回,通过分层筛选降低干扰 |
+| **安全第一** | 不要全委托给模型 | Gabriella: "Make instructions explicit, hard guarantees outside" |
+| **库级优化** | 比单Skill优化更重要 | 消除重叠,避免模型困惑 |
+| **版本管
